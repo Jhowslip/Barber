@@ -254,7 +254,7 @@ const ChartTooltipContent = React.forwardRef<
     )
   }
 )
-ChartTooltipContent.displayName = "ChartTooltip"
+ChartTooltipContent.displayName = "ChartTooltipContent"
 
 const ChartLegend = RechartsPrimitive.Legend
 
@@ -355,6 +355,16 @@ function getPayloadConfigFromPayload(
     : config[key as keyof typeof config]
 }
 
+const ChartYAxis = RechartsPrimitive.YAxis;
+const ChartXAxis = RechartsPrimitive.XAxis;
+const ChartBar = RechartsPrimitive.Bar;
+const ChartLine = RechartsPrimitive.Line;
+const ChartBarChart = RechartsPrimitive.BarChart;
+const ChartLineChart = RechartsPrimitive.LineChart;
+const ChartCartesianGrid = RechartsPrimitive.CartesianGrid;
+const ChartResponsiveContainer = RechartsPrimitive.ResponsiveContainer;
+
+
 export {
   ChartContainer,
   ChartTooltip,
@@ -362,4 +372,12 @@ export {
   ChartLegend,
   ChartLegendContent,
   ChartStyle,
+  ChartYAxis,
+  ChartXAxis,
+  ChartBar,
+  ChartLine,
+  ChartBarChart,
+  ChartLineChart,
+  ChartCartesianGrid,
+  ChartResponsiveContainer
 }
