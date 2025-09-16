@@ -21,6 +21,7 @@ import {
   SidebarMenuButton,
   SidebarProvider,
   SidebarTrigger,
+  SidebarRail,
 } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
 
@@ -37,7 +38,8 @@ export default function DashboardLayout({
 
   return (
     <SidebarProvider>
-      <Sidebar>
+      <Sidebar variant="inset" collapsible="icon">
+        <SidebarRail />
         <SidebarHeader>
           <div className="flex items-center gap-2">
             <Button
