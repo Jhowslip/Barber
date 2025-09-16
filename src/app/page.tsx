@@ -1,9 +1,5 @@
-import { LoginForm } from '@/components/login-form';
+import { redirect } from 'next/navigation';
 
 export default function Home() {
-  return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-4">
-      <LoginForm />
-    </main>
-  );
+  redirect('/reports');
 }
