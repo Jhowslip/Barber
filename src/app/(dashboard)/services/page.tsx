@@ -30,7 +30,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { ServiceForm } from "@/components/service-form";
 import { useToast } from "@/hooks/use-toast";
@@ -80,6 +79,7 @@ export default function ServicesPage() {
   const [services, setServices] = useState<Service[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingService, setEditingService] = useState<Service | null>(null);
   const { toast } = useToast();
   const [sortConfig, setSortConfig] = useState<{
     key: SortKey;
@@ -131,18 +131,24 @@ export default function ServicesPage() {
   
   const handleSaveService = async (values: any) => {
     try {
-      const response = await fetch('https://n8n.mailizjoias.com.br/webhook/servicos', {
-        method: 'POST',
+      const isEditing = !!editingService;
+      const url = 'https://n8n.mailizjoias.com.br/webhook/servicos';
+      const method = isEditing ? 'PUT' : 'POST';
+      
+      const body = {
+        ...(isEditing && { ID: Number(editingService.id) }),
+        Nome: values.name,
+        Preço: values.price,
+        "Duração (min)": values.duration,
+        Status: values.status === 'active' ? 'Ativo' : 'Desativado',
+      };
+
+      const response = await fetch(url, {
+        method: method,
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          // The API seems to expect the keys in Portuguese.
-          Nome: values.name,
-          Preço: values.price,
-          "Duração (min)": values.duration,
-          Status: values.status === 'active' ? 'Ativo' : 'Desativado',
-        }),
+        body: JSON.stringify(body),
       });
 
       if (!response.ok) {
@@ -151,10 +157,11 @@ export default function ServicesPage() {
       
       toast({
         title: "Sucesso!",
-        description: "Serviço salvo com sucesso.",
+        description: `Serviço ${isEditing ? 'atualizado' : 'salvo'} com sucesso.`,
       });
 
       setIsModalOpen(false);
+      setEditingService(null);
       loadServices(); // Refresh the list
     } catch (error) {
       console.error("Error saving service:", error);
@@ -166,9 +173,23 @@ export default function ServicesPage() {
     }
   };
 
+  const handleOpenAddModal = () => {
+    setEditingService(null);
+    setIsModalOpen(true);
+  }
+
+  const handleOpenEditModal = (service: Service) => {
+    setEditingService(service);
+    setIsModalOpen(true);
+  }
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setEditingService(null);
+  }
+
   return (
     <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
-       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
         <div className="flex items-center justify-between space-y-2">
             <div>
             <h2 className="text-3xl font-bold tracking-tight">Serviços</h2>
@@ -176,12 +197,10 @@ export default function ServicesPage() {
                 Gerencie os serviços oferecidos pela sua barbearia.
             </p>
             </div>
-            <DialogTrigger asChild>
-                <Button>
-                    <PlusCircle className="mr-2 h-4 w-4" />
-                    Adicionar Serviço
-                </Button>
-            </DialogTrigger>
+             <Button onClick={handleOpenAddModal}>
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Adicionar Serviço
+            </Button>
         </div>
 
         <div className="rounded-md border">
@@ -253,7 +272,7 @@ export default function ServicesPage() {
                         <DropdownMenuContent align="end">
                             <DropdownMenuLabel>Ações</DropdownMenuLabel>
                             <DropdownMenuItem
-                            onClick={() => console.log("Edit", service.id)}
+                            onClick={() => handleOpenEditModal(service)}
                             >
                             <Pencil className="mr-2 h-4 w-4" />
                             Editar
@@ -280,16 +299,18 @@ export default function ServicesPage() {
             </TableBody>
             </Table>
         </div>
-         <DialogContent className="sm:max-w-[425px]">
-            <DialogHeader>
-                <DialogTitle>Adicionar Novo Serviço</DialogTitle>
-            </DialogHeader>
-            <ServiceForm
-                onSave={handleSaveService}
-                onCancel={() => setIsModalOpen(false)}
-            />
-        </DialogContent>
-      </Dialog>
+         <Dialog open={isModalOpen} onOpenChange={handleCloseModal}>
+            <DialogContent className="sm:max-w-[425px]">
+                <DialogHeader>
+                    <DialogTitle>{editingService ? "Editar Serviço" : "Adicionar Novo Serviço"}</DialogTitle>
+                </DialogHeader>
+                <ServiceForm
+                    initialData={editingService}
+                    onSave={handleSaveService}
+                    onCancel={handleCloseModal}
+                />
+            </DialogContent>
+        </Dialog>
     </div>
   );
 }

@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { Loader2 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -33,21 +33,35 @@ const formSchema = z.object({
 });
 
 type ServiceFormProps = {
+  initialData?: z.infer<typeof formSchema> | null;
   onSave: (values: z.infer<typeof formSchema>) => Promise<void>;
   onCancel: () => void;
 };
 
-export function ServiceForm({ onSave, onCancel }: ServiceFormProps) {
+export function ServiceForm({ initialData, onSave, onCancel }: ServiceFormProps) {
   const [isLoading, setIsLoading] = useState(false);
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
-    defaultValues: {
+    defaultValues: initialData || {
       name: "",
       price: 0,
       duration: 30,
       status: "active",
     },
   });
+
+  useEffect(() => {
+    if (initialData) {
+      form.reset(initialData);
+    } else {
+      form.reset({
+        name: "",
+        price: 0,
+        duration: 30,
+        status: "active",
+      });
+    }
+  }, [initialData, form]);
 
   const handleSubmit = async (values: z.infer<typeof formSchema>) => {
     setIsLoading(true);
@@ -103,7 +117,7 @@ export function ServiceForm({ onSave, onCancel }: ServiceFormProps) {
           render={({ field }) => (
             <FormItem>
               <FormLabel>Status</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
+              <Select onValueChange={field.onChange} defaultValue={field.value} value={field.value}>
                 <FormControl>
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione o status" />
