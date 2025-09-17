@@ -79,6 +79,24 @@ const mapApiToForm = (apiData: ApiConfig): z.infer<typeof formSchema> => {
     };
 }
 
+const mapFormToApi = (formData: z.infer<typeof formSchema>): any => {
+    const paymentLabels = formData.paymentMethods.map(id => {
+        const method = paymentMethods.find(pm => pm.id === id);
+        return method ? method.label : '';
+    }).filter(label => label);
+
+    return {
+        row_number: 2, // As per your example
+        Nome_Barbearia: formData.barbershopName,
+        Telefone_Principal: formData.mainPhone,
+        Endereco: formData.address,
+        Horario_Funcionamento: formData.operatingHours,
+        Formas_Pagamento: paymentLabels.join(', '),
+        Responder_Audio: formData.audioResponse ? "Sim" : "Não",
+        Enviar_Reacoes: formData.sendReactions ? "Sim" : "Não",
+    };
+};
+
 
 export default function SettingsPage() {
   const { toast } = useToast();
@@ -126,17 +144,37 @@ export default function SettingsPage() {
   }, [form, toast]);
 
 
-  function onSubmit(values: z.infer<typeof formSchema>) {
+  async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
-    console.log(values);
-    // Here you would implement the POST request to save the settings
-    setTimeout(() => {
-      toast({
-        title: "Configurações Salvas",
-        description: "Suas alterações foram salvas com sucesso.",
-      });
-      setIsLoading(false);
-    }, 1500);
+    try {
+        const apiBody = mapFormToApi(values);
+        const response = await fetch('https://n8n.mailizjoias.com.br/webhook/config', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(apiBody),
+        });
+
+        if (!response.ok) {
+            throw new Error('Falha ao salvar as configurações.');
+        }
+
+        toast({
+            title: "Configurações Salvas",
+            description: "Suas alterações foram salvas com sucesso.",
+        });
+
+    } catch (error) {
+        console.error("Error saving settings:", error);
+        toast({
+            title: "Erro",
+            description: "Não foi possível salvar as configurações. Tente novamente.",
+            variant: "destructive",
+        });
+    } finally {
+        setIsLoading(false);
+    }
   }
 
   if (isFetching) {
