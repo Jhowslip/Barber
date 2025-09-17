@@ -147,7 +147,7 @@ export default function ServicesPage() {
       const method = 'POST';
       
       const body = {
-        ...(isEditing && { ID: Number(editingService.id) }),
+        ...(isEditing ? { ID: Number(editingService.id) }:{ ID: Number(services.length + 1) }),
         Nome: values.name,
         Preço: values.price,
         "Duração (min)": values.duration,

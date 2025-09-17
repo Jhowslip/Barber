@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Table,
   TableHeader,
@@ -34,22 +34,57 @@ type Barber = {
   notes: string;
 };
 
-const initialBarbers: Barber[] = [
-  { id: "1", name: "João Silva", specialty: "Corte Clássico", status: "active", notes: "Excelente com crianças." },
-  { id: "2", name: "Carlos Pereira", specialty: "Barba", status: "active", notes: "Especialista em barba terapia." },
-  { id: "3", name: "Miguel Santos", specialty: "Corte Moderno", status: "inactive", notes: "Em treinamento." },
-  { id: "4", name: "Lucas Souza", specialty: "Navalha", status: "active", notes: "" },
-  { id: "5", name: "André Costa", specialty: "Todos os estilos", status: "active", notes: "Barbeiro sênior." },
-];
+type ApiBarber = {
+  ID: number;
+  Nome: string;
+  Especialidade: string;
+  Status: 'Ativo' | 'Inativo';
+  Observacoes: string;
+};
+
 
 type SortKey = keyof Barber;
 
+async function getBarbers(): Promise<Barber[]> {
+    try {
+        const response = await fetch('https://n8n.mailizjoias.com.br/webhook/barbers');
+        if (!response.ok) {
+            console.error("Failed to fetch barbers", response.statusText);
+            return [];
+        }
+        const data: ApiBarber[] = await response.json();
+        return data.map(item => ({
+            id: String(item.ID),
+            name: item.Nome,
+            specialty: item.Especialidade,
+            status: item.Status === 'Ativo' ? 'active' : 'inactive',
+            notes: item.Observacoes,
+        }));
+    } catch (error) {
+        console.error("Error fetching barbers:", error);
+        return [];
+    }
+}
+
+
 export default function BarbersPage() {
-  const [barbers, setBarbers] = useState<Barber[]>(initialBarbers);
+  const [barbers, setBarbers] = useState<Barber[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [sortConfig, setSortConfig] = useState<{
     key: SortKey;
     direction: "ascending" | "descending";
   } | null>({ key: "name", direction: "ascending" });
+
+  async function loadBarbers() {
+    setIsLoading(true);
+    const fetchedBarbers = await getBarbers();
+    setBarbers(fetchedBarbers);
+    setIsLoading(false);
+  }
+
+  useEffect(() => {
+    loadBarbers();
+  }, []);
 
   const sortedBarbers = [...barbers].sort((a, b) => {
     if (sortConfig === null) {
@@ -129,44 +164,58 @@ export default function BarbersPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {sortedBarbers.map((barber) => (
-              <TableRow key={barber.id}>
-                <TableCell className="font-medium">{barber.name}</TableCell>
-                <TableCell>{barber.specialty}</TableCell>
-                <TableCell>
-                  <Badge variant={barber.status === "active" ? "default" : "secondary"} className={barber.status === "active" ? "bg-green-500/20 text-green-700 hover:bg-green-500/30" : "bg-gray-500/20 text-gray-700 hover:bg-gray-500/30"}>
-                    {barber.status === "active" ? "Ativo" : "Inativo"}
-                  </Badge>
-                </TableCell>
-                <TableCell>{barber.notes}</TableCell>
-                <TableCell>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" className="h-8 w-8 p-0">
-                        <span className="sr-only">Abrir menu</span>
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuLabel>Ações</DropdownMenuLabel>
-                      <DropdownMenuItem
-                        onClick={() => console.log("Edit", barber.id)}
-                      >
-                        <Pencil className="mr-2 h-4 w-4" />
-                        Editar
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => console.log("Deactivate", barber.id)}
-                        className="text-red-600 focus:text-red-600 focus:bg-red-50"
-                      >
-                        <Trash2 className="mr-2 h-4 w-4" />
-                        Desativar
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </TableCell>
-              </TableRow>
-            ))}
+            {isLoading ? (
+                <TableRow>
+                    <TableCell colSpan={5} className="h-24 text-center">
+                        Carregando...
+                    </TableCell>
+                </TableRow>
+            ) : sortedBarbers.length > 0 ? (
+                sortedBarbers.map((barber) => (
+                  <TableRow key={barber.id}>
+                    <TableCell className="font-medium">{barber.name}</TableCell>
+                    <TableCell>{barber.specialty}</TableCell>
+                    <TableCell>
+                      <Badge variant={barber.status === "active" ? "default" : "secondary"} className={barber.status === "active" ? "bg-green-500/20 text-green-700 hover:bg-green-500/30" : "bg-gray-500/20 text-gray-700 hover:bg-gray-500/30"}>
+                        {barber.status === "active" ? "Ativo" : "Inativo"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>{barber.notes}</TableCell>
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" className="h-8 w-8 p-0">
+                            <span className="sr-only">Abrir menu</span>
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuLabel>Ações</DropdownMenuLabel>
+                          <DropdownMenuItem
+                            onClick={() => console.log("Edit", barber.id)}
+                          >
+                            <Pencil className="mr-2 h-4 w-4" />
+                            Editar
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => console.log("Deactivate", barber.id)}
+                            className="text-red-600 focus:text-red-600 focus:bg-red-50"
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Desativar
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))
+            ) : (
+                <TableRow>
+                    <TableCell colSpan={5} className="h-24 text-center">
+                        Nenhum barbeiro encontrado.
+                    </TableCell>
+                </TableRow>
+            )}
           </TableBody>
         </Table>
       </div>
