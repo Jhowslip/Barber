@@ -15,6 +15,7 @@ import {
   MoreHorizontal,
   Pencil,
   Trash2,
+  PlusCircle
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -25,6 +26,15 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { BarberForm } from "@/components/barber-form";
+import { useToast } from "@/hooks/use-toast";
+
 
 type Barber = {
   id: string;
@@ -70,6 +80,9 @@ async function getBarbers(): Promise<Barber[]> {
 export default function BarbersPage() {
   const [barbers, setBarbers] = useState<Barber[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingBarber, setEditingBarber] = useState<Barber | null>(null);
+  const { toast } = useToast();
   const [sortConfig, setSortConfig] = useState<{
     key: SortKey;
     direction: "ascending" | "descending";
@@ -110,6 +123,60 @@ export default function BarbersPage() {
     }
     setSortConfig({ key, direction });
   };
+  
+  const handleSaveBarber = async (values: any) => {
+    try {
+      const isEditing = !!editingBarber;
+      const url = 'https://n8n.mailizjoias.com.br/webhook/barbers';
+      const method = 'POST';
+      
+      const body = {
+        ...(isEditing ? { ID: Number(editingBarber.id) }:{ ID: Number(barbers.length + 1) }),
+        Nome: values.name,
+        Especialidade: values.specialty,
+        Status: values.status === 'active' ? 'Ativo' : 'Inativo',
+        Observacoes: values.notes,
+      };
+
+      const response = await fetch(url, {
+        method: method,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok) {
+        throw new Error('Falha ao salvar o barbeiro');
+      }
+      
+      toast({
+        title: "Sucesso!",
+        description: `Barbeiro ${isEditing ? 'atualizado' : 'salvo'} com sucesso.`,
+      });
+
+      setIsModalOpen(false);
+      setEditingBarber(null);
+      loadBarbers(); // Refresh the list
+    } catch (error) {
+      console.error("Error saving barber:", error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível salvar o barbeiro. Tente novamente.",
+        variant: "destructive",
+      });
+    }
+  };
+  
+  const handleOpenAddModal = () => {
+    setEditingBarber(null);
+    setIsModalOpen(true);
+  }
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setEditingBarber(null);
+  }
 
   return (
     <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
@@ -120,7 +187,10 @@ export default function BarbersPage() {
             Gerencie os barbeiros da sua equipe.
           </p>
         </div>
-        <Button>Adicionar Barbeiro</Button>
+        <Button onClick={handleOpenAddModal}>
+            <PlusCircle className="mr-2 h-4 w-4" />
+            Adicionar Barbeiro
+        </Button>
       </div>
 
       <div className="rounded-md border">
@@ -219,6 +289,18 @@ export default function BarbersPage() {
           </TableBody>
         </Table>
       </div>
+      <Dialog open={isModalOpen} onOpenChange={handleCloseModal}>
+        <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+                <DialogTitle>{editingBarber ? "Editar Barbeiro" : "Adicionar Novo Barbeiro"}</DialogTitle>
+            </DialogHeader>
+            <BarberForm
+                initialData={editingBarber}
+                onSave={handleSaveBarber}
+                onCancel={handleCloseModal}
+            />
+        </DialogContent>
+    </Dialog>
     </div>
   );
 }
