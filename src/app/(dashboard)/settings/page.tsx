@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { Loader2 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -28,6 +28,7 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const formSchema = z.object({
   barbershopName: z.string().min(1, { message: "Nome da barbearia é obrigatório." }),
@@ -41,32 +42,90 @@ const formSchema = z.object({
   sendReactions: z.boolean().default(false),
 });
 
+type ApiConfig = {
+  Chave: string;
+  Valor: string;
+};
+
 const paymentMethods = [
   { id: "pix", label: "Pix" },
   { id: "cartao", label: "Cartão" },
   { id: "dinheiro", label: "Dinheiro" },
 ];
 
+const mapApiToForm = (apiData: ApiConfig[]): z.infer<typeof formSchema> => {
+    const configMap = new Map(apiData.map(item => [item.Chave, item.Valor]));
+    
+    const paymentMethodsString = configMap.get("Formas_Pagamento") || "";
+    const paymentMethodsArray = paymentMethodsString.split(',').map(p => p.trim().toLowerCase()).filter(p => paymentMethods.some(pm => pm.label.toLowerCase() === p));
+
+    // Map labels to ids
+    const paymentMethodIds = paymentMethodsArray.map(label => {
+        const method = paymentMethods.find(pm => pm.label.toLowerCase() === label);
+        return method ? method.id : '';
+    }).filter(id => id);
+
+
+    return {
+        barbershopName: configMap.get("Nome_Barbearia") || "",
+        mainPhone: configMap.get("Telefone_Principal") || "",
+        address: configMap.get("Endereco") || "",
+        operatingHours: configMap.get("Horario_Funcionamento") || "",
+        paymentMethods: paymentMethodIds,
+        audioResponse: (configMap.get("Responder_Audio") || "Não").toLowerCase() === "sim",
+        sendReactions: (configMap.get("Enviar_Reacoes") || "Não").toLowerCase() === "sim",
+    };
+}
+
+
 export default function SettingsPage() {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+  const [isFetching, setIsFetching] = useState(true);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      barbershopName: "Barbearia AlphaClub",
-      mainPhone: "(11) 99999-9999",
-      address: "Rua das Tesouras, 123, Bairro do Corte, São Paulo - SP",
-      operatingHours: "Segunda a Sábado, das 9h às 20h",
-      paymentMethods: ["pix", "dinheiro"],
-      audioResponse: true,
+      barbershopName: "",
+      mainPhone: "",
+      address: "",
+      operatingHours: "",
+      paymentMethods: [],
+      audioResponse: false,
       sendReactions: false,
     },
   });
 
+  useEffect(() => {
+    async function fetchConfig() {
+      try {
+        setIsFetching(true);
+        const response = await fetch('https://n8n.mailizjoias.com.br/webhook/config');
+        if (!response.ok) {
+          throw new Error('Falha ao buscar as configurações.');
+        }
+        const data: ApiConfig[] = await response.json();
+        const formattedData = mapApiToForm(data);
+        form.reset(formattedData);
+      } catch (error) {
+        console.error(error);
+        toast({
+          title: "Erro",
+          description: "Não foi possível carregar as configurações. Tente novamente mais tarde.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsFetching(false);
+      }
+    }
+    fetchConfig();
+  }, [form, toast]);
+
+
   function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
     console.log(values);
+    // Here you would implement the POST request to save the settings
     setTimeout(() => {
       toast({
         title: "Configurações Salvas",
@@ -74,6 +133,77 @@ export default function SettingsPage() {
       });
       setIsLoading(false);
     }, 1500);
+  }
+
+  if (isFetching) {
+    return (
+        <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
+            <div className="space-y-2">
+                <Skeleton className="h-9 w-64" />
+                <Skeleton className="h-5 w-96" />
+            </div>
+             <div className="space-y-8">
+                <Card>
+                    <CardHeader>
+                        <CardTitle><Skeleton className="h-7 w-48" /></CardTitle>
+                        <CardDescription><Skeleton className="h-5 w-80" /></CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                        <div className="space-y-2">
+                            <Skeleton className="h-4 w-32" />
+                            <Skeleton className="h-10 w-full" />
+                        </div>
+                         <div className="space-y-2">
+                            <Skeleton className="h-4 w-32" />
+                            <Skeleton className="h-10 w-full" />
+                        </div>
+                         <div className="space-y-2">
+                            <Skeleton className="h-4 w-32" />
+                            <Skeleton className="h-20 w-full" />
+                        </div>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader>
+                        <CardTitle><Skeleton className="h-7 w-48" /></CardTitle>
+                        <CardDescription><Skeleton className="h-5 w-80" /></CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                        <div className="space-y-2">
+                            <Skeleton className="h-4 w-40" />
+                            <Skeleton className="h-20 w-full" />
+                        </div>
+                        <div className="space-y-4">
+                            <Skeleton className="h-5 w-32" />
+                             <div className="flex items-center space-x-3">
+                                <Skeleton className="h-4 w-4" />
+                                <Skeleton className="h-4 w-16" />
+                             </div>
+                              <div className="flex items-center space-x-3">
+                                <Skeleton className="h-4 w-4" />
+                                <Skeleton className="h-4 w-16" />
+                             </div>
+                              <div className="flex items-center space-x-3">
+                                <Skeleton className="h-4 w-4" />
+                                <Skeleton className="h-4 w-16" />
+                             </div>
+                        </div>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader>
+                        <CardTitle><Skeleton className="h-7 w-48" /></CardTitle>
+                        <CardDescription><Skeleton className="h-5 w-80" /></CardDescription>
+                    </CardHeader>
+                     <CardContent className="space-y-4">
+                        <Skeleton className="h-20 w-full" />
+                        <Skeleton className="h-20 w-full" />
+                    </CardContent>
+                </Card>
+                <Skeleton className="h-10 w-40" />
+            </div>
+        </div>
+    )
   }
 
   return (
@@ -191,9 +321,9 @@ export default function SettingsPage() {
                                   checked={field.value?.includes(item.id)}
                                   onCheckedChange={(checked) => {
                                     return checked
-                                      ? field.onChange([...field.value, item.id])
+                                      ? field.onChange([...(field.value || []), item.id])
                                       : field.onChange(
-                                          field.value?.filter(
+                                          (field.value || []).filter(
                                             (value) => value !== item.id
                                           )
                                         );
