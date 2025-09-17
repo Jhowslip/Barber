@@ -144,7 +144,7 @@ export default function ServicesPage() {
     try {
       const isEditing = !!editingService;
       const url = 'https://n8n.mailizjoias.com.br/webhook/servicos';
-      const method = isEditing ? 'PUT' : 'POST';
+      const method = 'POST';
       
       const body = {
         ...(isEditing && { ID: Number(editingService.id) }),
@@ -189,7 +189,7 @@ export default function ServicesPage() {
 
     try {
       const response = await fetch('https://n8n.mailizjoias.com.br/webhook/servicos', {
-        method: 'PUT',
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
