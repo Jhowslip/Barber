@@ -43,8 +43,13 @@ const formSchema = z.object({
 });
 
 type ApiConfig = {
-  Chave: string;
-  Valor: string;
+  Nome_Barbearia: string;
+  Telefone_Principal: string;
+  Endereco: string;
+  Horario_Funcionamento: string;
+  Formas_Pagamento: string;
+  Responder_Audio: string;
+  Enviar_Reacoes: string;
 };
 
 const paymentMethods = [
@@ -53,10 +58,8 @@ const paymentMethods = [
   { id: "dinheiro", label: "Dinheiro" },
 ];
 
-const mapApiToForm = (apiData: ApiConfig[]): z.infer<typeof formSchema> => {
-    const configMap = new Map(apiData.map(item => [item.Chave, item.Valor]));
-    
-    const paymentMethodsString = configMap.get("Formas_Pagamento") || "";
+const mapApiToForm = (apiData: ApiConfig): z.infer<typeof formSchema> => {
+    const paymentMethodsString = apiData.Formas_Pagamento || "";
     const paymentMethodsArray = paymentMethodsString.split(',').map(p => p.trim().toLowerCase()).filter(p => paymentMethods.some(pm => pm.label.toLowerCase() === p));
 
     // Map labels to ids
@@ -65,15 +68,14 @@ const mapApiToForm = (apiData: ApiConfig[]): z.infer<typeof formSchema> => {
         return method ? method.id : '';
     }).filter(id => id);
 
-
     return {
-        barbershopName: configMap.get("Nome_Barbearia") || "",
-        mainPhone: configMap.get("Telefone_Principal") || "",
-        address: configMap.get("Endereco") || "",
-        operatingHours: configMap.get("Horario_Funcionamento") || "",
+        barbershopName: apiData.Nome_Barbearia || "",
+        mainPhone: apiData.Telefone_Principal || "",
+        address: apiData.Endereco || "",
+        operatingHours: apiData.Horario_Funcionamento || "",
         paymentMethods: paymentMethodIds,
-        audioResponse: (configMap.get("Responder_Audio") || "Não").toLowerCase() === "sim",
-        sendReactions: (configMap.get("Enviar_Reacoes") || "Não").toLowerCase() === "sim",
+        audioResponse: (apiData.Responder_Audio || "Não").toLowerCase() === "sim",
+        sendReactions: (apiData.Enviar_Reacoes || "Não").toLowerCase() === "sim",
     };
 }
 
@@ -105,8 +107,10 @@ export default function SettingsPage() {
           throw new Error('Falha ao buscar as configurações.');
         }
         const data: ApiConfig[] = await response.json();
-        const formattedData = mapApiToForm(data);
-        form.reset(formattedData);
+        if (data.length > 0) {
+            const formattedData = mapApiToForm(data[0]);
+            form.reset(formattedData);
+        }
       } catch (error) {
         console.error(error);
         toast({
