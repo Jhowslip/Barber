@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, XAxis, YAxis } from "recharts";
-import { format, subMonths, startOfMonth, endOfMonth } from "date-fns";
+import { format, subMonths, startOfMonth, endOfMonth, differenceInDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Calendar as CalendarIcon, Loader2 } from "lucide-react";
 import { DateRange } from "react-day-picker";
@@ -110,9 +110,11 @@ export default function ReportsPage({
   const previousPeriodAppointments = useMemo(() => {
     if (!date?.from) return [];
     
-    const diff = (date.to || date.from).getTime() - date.from.getTime();
-    const prevFrom = new Date(date.from.getTime() - diff - (24 * 60 * 60 * 1000));
-    const prevTo = new Date(date.from.getTime() - (24 * 60 * 60 * 1000));
+    const to = date.to || date.from;
+    const diffInDays = differenceInDays(to, date.from);
+
+    const prevFrom = subMonths(date.from, 1);
+    const prevTo = subMonths(to, 1);
     
     return appointments.filter(app => {
         const appDate = app.start;
