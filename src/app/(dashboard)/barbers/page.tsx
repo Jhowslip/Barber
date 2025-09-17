@@ -32,6 +32,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { BarberForm } from "@/components/barber-form";
 import { useToast } from "@/hooks/use-toast";
 
@@ -82,6 +92,7 @@ export default function BarbersPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingBarber, setEditingBarber] = useState<Barber | null>(null);
+  const [deactivatingBarber, setDeactivatingBarber] = useState<Barber | null>(null);
   const { toast } = useToast();
   const [sortConfig, setSortConfig] = useState<{
     key: SortKey;
@@ -152,7 +163,7 @@ export default function BarbersPage() {
       
       toast({
         title: "Sucesso!",
-        description: `Barbeiro ${isEditing ? 'atualizado' : 'salvo'} com sucesso.`,
+        description: `Barbeiro ${isEditing ? 'atualizado' : 'adicionado'} com sucesso.`,
       });
 
       setIsModalOpen(false);
@@ -167,10 +178,58 @@ export default function BarbersPage() {
       });
     }
   };
+
+  const handleDeactivateBarber = async () => {
+    if (!deactivatingBarber) return;
+
+    try {
+      const response = await fetch('https://n8n.mailizjoias.com.br/webhook/barbers', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ID: Number(deactivatingBarber.id),
+          Nome: deactivatingBarber.name,
+          Especialidade: deactivatingBarber.specialty,
+          Status: 'Inativo',
+          Observacoes: deactivatingBarber.notes,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Falha ao desativar o barbeiro');
+      }
+
+      toast({
+        title: "Sucesso!",
+        description: "Barbeiro desativado com sucesso.",
+      });
+
+      setDeactivatingBarber(null);
+      loadBarbers(); // Refresh the list
+    } catch (error) {
+      console.error("Error deactivating barber:", error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível desativar o barbeiro. Tente novamente.",
+        variant: "destructive",
+      });
+    }
+  };
   
   const handleOpenAddModal = () => {
     setEditingBarber(null);
     setIsModalOpen(true);
+  }
+
+  const handleOpenEditModal = (barber: Barber) => {
+    setEditingBarber(barber);
+    setIsModalOpen(true);
+  }
+  
+  const handleOpenDeactivateDialog = (barber: Barber) => {
+    setDeactivatingBarber(barber);
   }
 
   const handleCloseModal = () => {
@@ -262,13 +321,13 @@ export default function BarbersPage() {
                         <DropdownMenuContent align="end">
                           <DropdownMenuLabel>Ações</DropdownMenuLabel>
                           <DropdownMenuItem
-                            onClick={() => console.log("Edit", barber.id)}
+                            onClick={() => handleOpenEditModal(barber)}
                           >
                             <Pencil className="mr-2 h-4 w-4" />
                             Editar
                           </DropdownMenuItem>
                           <DropdownMenuItem
-                            onClick={() => console.log("Deactivate", barber.id)}
+                            onClick={() => handleOpenDeactivateDialog(barber)}
                             className="text-red-600 focus:text-red-600 focus:bg-red-50"
                           >
                             <Trash2 className="mr-2 h-4 w-4" />
@@ -301,6 +360,22 @@ export default function BarbersPage() {
             />
         </DialogContent>
     </Dialog>
+     <AlertDialog open={!!deactivatingBarber} onOpenChange={(open) => !open && setDeactivatingBarber(null)}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+            <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
+            <AlertDialogDescription>
+                Esta ação desativará o barbeiro "{deactivatingBarber?.name}". Você poderá reativá-lo depois se necessário.
+            </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setDeactivatingBarber(null)}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeactivateBarber}>Confirmar</AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+    </AlertDialog>
     </div>
   );
 }
+
+    
