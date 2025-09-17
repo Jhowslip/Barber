@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { format, addDays, subDays, startOfWeek, endOfWeek, addMinutes, areIntervalsOverlapping, parse } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { ChevronLeft, ChevronRight, X, Clock, User, Scissors, Calendar as CalendarIcon } from "lucide-react";
+import { ChevronLeft, ChevronRight, X, Clock, User, Scissors, Calendar as CalendarIcon, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -16,11 +16,16 @@ import {
 } from "@/components/ui/dialog";
 import { AppointmentForm } from "@/components/appointment-form";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useToast } from "@/hooks/use-toast";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 type Appointment = {
   id: string;
   clientName: string;
+  clientPhone: string;
+  serviceId: string;
   service: string;
+  barberId: string;
   barber: string;
   start: Date;
   end: Date;
@@ -98,7 +103,10 @@ async function getAppointments(services: Service[]): Promise<Appointment[]> {
             return {
                 id: String(item.ID),
                 clientName: item.Cliente,
+                clientPhone: item.Telefone_Cliente,
+                serviceId: String(item.ID_Servico),
                 service: item.Servico,
+                barberId: String(item.ID_Barbeiro),
                 barber: item.Barbeiro,
                 start: startDate,
                 end: endDate,
@@ -115,20 +123,26 @@ async function getAppointments(services: Service[]): Promise<Appointment[]> {
 export default function AgendaPage() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [services, setServices] = useState<Service[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const [newAppointmentSlot, setNewAppointmentSlot] = useState<Date | null>(null);
+  const [appointmentToCancel, setAppointmentToCancel] = useState<Appointment | null>(null);
+  const { toast } = useToast();
+
+  const loadAgendaData = async () => {
+    setIsLoading(true);
+    const fetchedServices = await getServices();
+    setServices(fetchedServices);
+    const fetchedAppointments = await getAppointments(fetchedServices);
+    setAppointments(fetchedAppointments);
+    setIsLoading(false);
+  }
 
   useEffect(() => {
-    async function loadData() {
-        setIsLoading(true);
-        const services = await getServices();
-        const fetchedAppointments = await getAppointments(services);
-        setAppointments(fetchedAppointments);
-        setIsLoading(false);
-    }
-    loadData();
+    loadAgendaData();
   }, []);
 
   const week = useMemo(() => {
@@ -167,17 +181,102 @@ export default function AgendaPage() {
     setIsModalOpen(true);
   };
   
-  const handleSaveAppointment = (values: any) => {
-    console.log("Saving appointment", values);
-    // Here you would typically handle saving the appointment to your backend
-    // For now, we just close the modal. In a real app, you'd update the `appointments` state.
-    setIsModalOpen(false);
+  const handleSaveAppointment = async (values: any) => {
+    setIsSubmitting(true);
+    try {
+        const service = services.find(s => s.id === values.serviceId);
+        if (!service) throw new Error("Serviço não encontrado");
+
+        const newAppointment = {
+            ID: appointments.length > 0 ? Math.max(...appointments.map(a => parseInt(a.id))) + 1 : 1,
+            Data: format(values.startTime, 'yyyy-MM-dd'),
+            Hora: format(values.startTime, 'HH:mm'),
+            Cliente: values.clientName,
+            Telefone_Cliente: values.clientPhone,
+            ID_Servico: parseInt(values.serviceId),
+            Servico: service.name,
+            ID_Barbeiro: parseInt(values.barberId),
+            Barbeiro: values.barberName,
+            Status: "Pendente"
+        };
+        
+        const response = await fetch('https://n8n.mailizjoias.com.br/webhook/agenda', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(newAppointment),
+        });
+
+        if (!response.ok) {
+            throw new Error('Falha ao criar o agendamento.');
+        }
+
+        toast({
+            title: "Sucesso!",
+            description: "Agendamento criado com sucesso.",
+        });
+
+        setIsModalOpen(false);
+        await loadAgendaData();
+
+    } catch (error) {
+        console.error("Error saving appointment:", error);
+        toast({
+            title: "Erro",
+            description: "Não foi possível criar o agendamento.",
+            variant: "destructive",
+        });
+    } finally {
+        setIsSubmitting(false);
+    }
   };
   
-  const handleCancelAppointment = () => {
-    console.log("Canceling appointment", selectedAppointment?.id);
-    setIsModalOpen(false);
+  const handleStatusChange = async (appointment: Appointment, newStatus: "Confirmado" | "Cancelado") => {
+    setIsSubmitting(true);
+    try {
+        const payload = {
+            ID: parseInt(appointment.id),
+            Data: format(appointment.start, 'yyyy-MM-dd'),
+            Hora: format(appointment.start, 'HH:mm'),
+            Cliente: appointment.clientName,
+            Telefone_Cliente: appointment.clientPhone,
+            ID_Servico: parseInt(appointment.serviceId),
+            Servico: appointment.service,
+            ID_Barbeiro: parseInt(appointment.barberId),
+            Barbeiro: appointment.barber,
+            Status: newStatus,
+        };
+
+        const response = await fetch('https://n8n.mailizjoias.com.br/webhook/agenda', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+            throw new Error(`Falha ao ${newStatus === 'Confirmado' ? 'confirmar' : 'cancelar'} o agendamento.`);
+        }
+        
+        toast({
+            title: "Sucesso!",
+            description: `Agendamento ${newStatus === 'Confirmado' ? 'confirmado' : 'cancelado'} com sucesso.`,
+        });
+
+        setIsModalOpen(false);
+        setAppointmentToCancel(null);
+        await loadAgendaData();
+
+    } catch (error) {
+        console.error(`Error updating status for appointment ${appointment.id}:`, error);
+        toast({
+            title: "Erro",
+            description: `Não foi possível ${newStatus === 'Confirmado' ? 'confirmar' : 'cancelar'} o agendamento.`,
+            variant: "destructive",
+        });
+    } finally {
+        setIsSubmitting(false);
+    }
   }
+
 
   if (isLoading) {
     return (
@@ -285,15 +384,15 @@ export default function AgendaPage() {
                     const height = (duration / 30) * 5; // 5rem = h-20
                     
                     const statusClass = {
-                        confirmed: 'bg-primary',
-                        pending: 'bg-accent',
+                        confirmed: 'bg-primary/90 hover:bg-primary',
+                        pending: 'bg-amber-500 hover:bg-amber-600',
                         canceled: 'bg-destructive'
                     };
                     
                     return (
                         <div
                             key={app.id}
-                            className={`absolute w-full p-2 rounded-lg text-white text-xs cursor-pointer z-10 ${statusClass[app.status]}`}
+                            className={`absolute w-full p-2 rounded-lg text-white text-xs cursor-pointer z-10 transition-colors ${statusClass[app.status]}`}
                             style={{ top: `${top}rem`, height: `${height}rem`, left: '0.1rem', right: '0.1rem', width: 'calc(100% - 0.2rem)' }}
                             onClick={() => handleAppointmentClick(app)}
                         >
@@ -340,9 +439,17 @@ export default function AgendaPage() {
                     </div>
                 </div>
                 <DialogFooter className="pt-4">
-                    <Button variant="destructive" onClick={handleCancelAppointment}>Cancelar</Button>
-                    <Button variant="outline">Remarcar</Button>
-                    <Button>Confirmar</Button>
+                    <Button variant="destructive" onClick={() => { setAppointmentToCancel(selectedAppointment); setIsModalOpen(false); }} disabled={isSubmitting}>
+                         {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Cancelar
+                    </Button>
+                    <Button variant="outline" disabled={true}>Remarcar</Button>
+                    {selectedAppointment.status === 'pending' && (
+                        <Button onClick={() => handleStatusChange(selectedAppointment, "Confirmado")} disabled={isSubmitting}>
+                           {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                           Confirmar
+                        </Button>
+                    )}
                 </DialogFooter>
              </div>
           ) : (
@@ -350,10 +457,28 @@ export default function AgendaPage() {
                 initialData={{startTime: newAppointmentSlot}}
                 onSave={handleSaveAppointment}
                 onCancel={() => setIsModalOpen(false)}
+                isSubmitting={isSubmitting}
             />
           )}
         </DialogContent>
       </Dialog>
+      
+      <AlertDialog open={!!appointmentToCancel} onOpenChange={(open) => !open && setAppointmentToCancel(null)}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+            <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
+            <AlertDialogDescription>
+                Esta ação cancelará o agendamento de "{appointmentToCancel?.clientName}". Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+                <AlertDialogCancel onClick={() => setAppointmentToCancel(null)}>Voltar</AlertDialogCancel>
+                <AlertDialogAction onClick={() => appointmentToCancel && handleStatusChange(appointmentToCancel, "Cancelado")} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                    Confirmar Cancelamento
+                </AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+    </AlertDialog>
     </div>
   );
 }

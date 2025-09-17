@@ -4,6 +4,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { format } from "date-fns";
+import { useEffect, useState } from "react";
+import { Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -23,47 +25,97 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { DialogFooter } from "./ui/dialog";
+import { Skeleton } from "./ui/skeleton";
 
 const formSchema = z.object({
   clientName: z.string().min(1, "Nome do cliente é obrigatório."),
-  service: z.string().min(1, "Selecione um serviço."),
-  barber: z.string().min(1, "Selecione um barbeiro."),
+  clientPhone: z.string().min(1, "Telefone do cliente é obrigatório."),
+  serviceId: z.string().min(1, "Selecione um serviço."),
+  barberId: z.string().min(1, "Selecione um barbeiro."),
   startTime: z.date(),
+  // For passing to the parent handler
+  barberName: z.string().optional(),
 });
+
+type Service = {
+  id: string;
+  name: string;
+};
+
+type Barber = {
+  id: string;
+  name: string;
+};
+
 
 type AppointmentFormProps = {
   initialData: Partial<z.infer<typeof formSchema>>;
   onSave: (values: z.infer<typeof formSchema>) => void;
   onCancel: () => void;
+  isSubmitting: boolean;
 };
 
-// Mock data, replace with your actual data fetching
-const services = [
-  { id: "1", name: "Corte Masculino" },
-  { id: "2", name: "Barba Terapia" },
-  { id: "3", name: "Corte e Barba" },
-  { id: "4", name: "Penteado" },
-  { id: "5", name: "Hidratação Capilar" },
-];
+export function AppointmentForm({ initialData, onSave, onCancel, isSubmitting }: AppointmentFormProps) {
+  const [services, setServices] = useState<Service[]>([]);
+  const [barbers, setBarbers] = useState<Barber[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-const barbers = [
-  { id: "1", name: "João Silva" },
-  { id: "2", name: "Carlos Pereira" },
-  { id: "5", name: "André Costa" },
-];
-
-export function AppointmentForm({ initialData, onSave, onCancel }: AppointmentFormProps) {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       clientName: "",
+      clientPhone: "",
       ...initialData,
     },
   });
 
+  useEffect(() => {
+    async function fetchData() {
+        setIsLoading(true);
+        try {
+            const [servicesRes, barbersRes] = await Promise.all([
+                fetch('https://n8n.mailizjoias.com.br/webhook/servicos'),
+                fetch('https://n8n.mailizjoias.com.br/webhook/barbers')
+            ]);
+            const servicesData = await servicesRes.json();
+            const barbersData = await barbersRes.json();
+
+            setServices(servicesData.map((s: any) => ({ id: String(s.ID), name: s.Nome })).filter((s:any) => s.Status !== 'Desativado'));
+            setBarbers(barbersData.map((b: any) => ({ id: String(b.ID), name: b.Nome })).filter((b:any) => b.Status !== 'Inativo'));
+
+        } catch (error) {
+            console.error("Failed to fetch data for form", error);
+        } finally {
+            setIsLoading(false);
+        }
+    }
+    fetchData();
+  }, []);
+
+  function onSubmit(data: z.infer<typeof formSchema>) {
+    const selectedBarber = barbers.find(b => b.id === data.barberId);
+    onSave({ ...data, barberName: selectedBarber?.name });
+  }
+
+  if (isLoading) {
+    return (
+        <div className="space-y-4 pt-4">
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+            <DialogFooter className="pt-4">
+                <Skeleton className="h-10 w-24" />
+                <Skeleton className="h-10 w-36" />
+            </DialogFooter>
+        </div>
+    )
+  }
+
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSave)} className="space-y-4 pt-4">
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-4">
         <FormField
           control={form.control}
           name="clientName"
@@ -79,7 +131,20 @@ export function AppointmentForm({ initialData, onSave, onCancel }: AppointmentFo
         />
         <FormField
           control={form.control}
-          name="service"
+          name="clientPhone"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Telefone do Cliente</FormLabel>
+              <FormControl>
+                <Input placeholder="(99) 99999-9999" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="serviceId"
           render={({ field }) => (
             <FormItem>
               <FormLabel>Serviço</FormLabel>
@@ -91,7 +156,7 @@ export function AppointmentForm({ initialData, onSave, onCancel }: AppointmentFo
                 </FormControl>
                 <SelectContent>
                   {services.map((service) => (
-                    <SelectItem key={service.id} value={service.name}>
+                    <SelectItem key={service.id} value={service.id}>
                       {service.name}
                     </SelectItem>
                   ))}
@@ -103,7 +168,7 @@ export function AppointmentForm({ initialData, onSave, onCancel }: AppointmentFo
         />
         <FormField
           control={form.control}
-          name="barber"
+          name="barberId"
           render={({ field }) => (
             <FormItem>
               <FormLabel>Barbeiro</FormLabel>
@@ -115,7 +180,7 @@ export function AppointmentForm({ initialData, onSave, onCancel }: AppointmentFo
                 </FormControl>
                 <SelectContent>
                   {barbers.map((barber) => (
-                    <SelectItem key={barber.id} value={barber.name}>
+                    <SelectItem key={barber.id} value={barber.id}>
                       {barber.name}
                     </SelectItem>
                   ))}
@@ -139,10 +204,13 @@ export function AppointmentForm({ initialData, onSave, onCancel }: AppointmentFo
           )}
         />
         <DialogFooter className="pt-4">
-            <Button type="button" variant="outline" onClick={onCancel}>
+            <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
                 Cancelar
             </Button>
-            <Button type="submit">Salvar Agendamento</Button>
+            <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {isSubmitting ? "Salvando..." : "Salvar Agendamento"}
+            </Button>
         </DialogFooter>
       </form>
     </Form>
