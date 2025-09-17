@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, XAxis, YAxis } from "recharts";
-import { format } from "date-fns";
-import { Calendar as CalendarIcon } from "lucide-react";
+import { format, subMonths, startOfMonth, endOfMonth } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { Calendar as CalendarIcon, Loader2 } from "lucide-react";
 import { DateRange } from "react-day-picker";
+import { countBy, orderBy } from "lodash";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -26,42 +28,41 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart";
+import { Skeleton } from "@/components/ui/skeleton";
 
-const totalAppointmentsData = {
-  currentMonth: 125,
+type Appointment = {
+  id: string;
+  start: Date;
+  service: string;
+  barber: string;
+  status: "confirmed" | "pending" | "canceled";
 };
 
-const topServicesData = [
-  { name: "Corte Masculino", value: 45 },
-  { name: "Barba Terapia", value: 30 },
-  { name: "Corte e Barba", value: 25 },
-  { name: "Hidratação", value: 15 },
-  { name: "Penteado", value: 10 },
-];
+async function getAppointments(): Promise<Appointment[]> {
+    try {
+        const response = await fetch('https://n8n.mailizjoias.com.br/webhook/agenda');
+        if (!response.ok) {
+            console.error("Failed to fetch appointments", response.statusText);
+            return [];
+        }
+        const data: any[] = await response.json();
 
-const topBarbersData = [
-  { name: "João Silva", value: 40 },
-  { name: "Carlos Pereira", value: 35 },
-  { name: "André Costa", value: 28 },
-  { name: "Lucas Souza", value: 22 },
-];
+        return data.map(item => ({
+            id: String(item.ID),
+            start: new Date(`${item.Data}T${item.Hora}:00`),
+            service: item.Servico,
+            barber: item.Barbeiro,
+            status: item.Status === "Confirmado" ? "confirmed" : item.Status === "Pendente" ? "pending" : "canceled",
+        }));
+    } catch (error) {
+        console.error("Error fetching appointments:", error);
+        return [];
+    }
+}
 
-const busiestHoursData = [
-  { hour: "09:00", value: 5 },
-  { hour: "10:00", value: 8 },
-  { hour: "11:00", value: 12 },
-  { hour: "12:00", value: 7 },
-  { hour: "13:00", value: 6 },
-  { hour: "14:00", value: 9 },
-  { hour: "15:00", value: 11 },
-  { hour: "16:00", value: 15 },
-  { hour: "17:00", value: 18 },
-  { hour: "18:00", value: 20 },
-  { hour: "19:00", value: 14 },
-];
 
 const chartConfig = {
-  appointments: {
+  value: {
     label: "Agendamentos",
     color: "hsl(var(--chart-2))",
   },
@@ -74,10 +75,144 @@ const chartConfig = {
 export default function ReportsPage({
   className,
 }: React.HTMLAttributes<HTMLDivElement>) {
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  
   const [date, setDate] = useState<DateRange | undefined>({
-    from: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
-    to: new Date(),
+    from: startOfMonth(new Date()),
+    to: endOfMonth(new Date()),
   });
+
+  useEffect(() => {
+    async function loadData() {
+        setIsLoading(true);
+        const [appointmentsData] = await Promise.all([
+            getAppointments(),
+        ]);
+        setAppointments(appointmentsData);
+        setIsLoading(false);
+    }
+    loadData();
+  }, []);
+
+  const filteredAppointments = useMemo(() => {
+    if (!date?.from) return [];
+    
+    // Set to end of day for inclusive range
+    const toDate = date.to ? new Date(date.to.setHours(23, 59, 59, 999)) : new Date(date.from.setHours(23, 59, 59, 999));
+    
+    return appointments.filter(app => {
+      const appDate = app.start;
+      return appDate >= date.from! && appDate <= toDate && app.status !== 'canceled';
+    });
+  }, [appointments, date]);
+
+  const previousPeriodAppointments = useMemo(() => {
+    if (!date?.from) return [];
+    
+    const diff = (date.to || date.from).getTime() - date.from.getTime();
+    const prevFrom = new Date(date.from.getTime() - diff - (24 * 60 * 60 * 1000));
+    const prevTo = new Date(date.from.getTime() - (24 * 60 * 60 * 1000));
+    
+    return appointments.filter(app => {
+        const appDate = app.start;
+        return appDate >= prevFrom && appDate <= prevTo && app.status !== 'canceled';
+    });
+  }, [appointments, date]);
+
+
+  const totalAppointmentsData = useMemo(() => {
+    const currentCount = filteredAppointments.length;
+    const previousCount = previousPeriodAppointments.length;
+    const percentageChange = previousCount > 0 ? ((currentCount - previousCount) / previousCount) * 100 : currentCount > 0 ? 100 : 0;
+    return {
+        current: currentCount,
+        percentageChange: percentageChange,
+    };
+  }, [filteredAppointments, previousPeriodAppointments]);
+
+  const topServicesData = useMemo(() => {
+    const serviceCounts = countBy(filteredAppointments, 'service');
+    return orderBy(
+      Object.entries(serviceCounts).map(([name, value]) => ({ name, value })),
+      'value',
+      'desc'
+    ).slice(0, 5);
+  }, [filteredAppointments]);
+
+  const topBarbersData = useMemo(() => {
+    const barberCounts = countBy(filteredAppointments, 'barber');
+    return orderBy(
+      Object.entries(barberCounts).map(([name, value]) => ({ name, value })),
+      'value',
+      'desc'
+    ).slice(0, 4);
+  }, [filteredAppointments]);
+  
+  const busiestHoursData = useMemo(() => {
+    const hourCounts = countBy(filteredAppointments, app => format(app.start, 'HH:00'));
+    const allHours = Array.from({length: 11}, (_, i) => `${String(i + 9).padStart(2, '0')}:00`);
+    const data = allHours.map(hour => ({
+        hour,
+        value: hourCounts[hour] || 0
+    }));
+    return data;
+  }, [filteredAppointments]);
+
+  if (isLoading) {
+    return (
+        <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
+            <div className="flex items-center justify-between space-y-2">
+                <div className="space-y-2">
+                    <Skeleton className="h-9 w-64" />
+                    <Skeleton className="h-5 w-80" />
+                </div>
+                <div className={cn("grid gap-2", className)}>
+                   <Skeleton className="h-10 w-[300px]" />
+                </div>
+            </div>
+             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Total de agendamentos no período</CardTitle>
+                        <CalendarIcon className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                        <Skeleton className="h-8 w-20 mb-2" />
+                        <Skeleton className="h-4 w-48" />
+                    </CardContent>
+                </Card>
+             </div>
+             <div className="grid gap-4 md:grid-cols-1 lg:grid-cols-2">
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Serviços mais vendidos</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <Skeleton className="h-[300px] w-full" />
+                    </CardContent>
+                </Card>
+                 <Card>
+                    <CardHeader>
+                        <CardTitle>Barbeiros com mais clientes</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <Skeleton className="h-[300px] w-full" />
+                    </CardContent>
+                </Card>
+             </div>
+              <Card>
+                <CardHeader>
+                    <CardTitle>Horários mais disputados</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <Skeleton className="h-[250px] w-full" />
+                </CardContent>
+             </Card>
+        </div>
+    )
+  }
+
 
   return (
     <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
@@ -103,11 +238,11 @@ export default function ReportsPage({
                 {date?.from ? (
                   date.to ? (
                     <>
-                      {format(date.from, "LLL dd, y")} -{" "}
-                      {format(date.to, "LLL dd, y")}
+                      {format(date.from, "PPP", { locale: ptBR })} -{" "}
+                      {format(date.to, "PPP", { locale: ptBR })}
                     </>
                   ) : (
-                    format(date.from, "LLL dd, y")
+                    format(date.from, "PPP", { locale: ptBR })
                   )
                 ) : (
                   <span>Selecione um período</span>
@@ -122,6 +257,7 @@ export default function ReportsPage({
                 selected={date}
                 onSelect={setDate}
                 numberOfMonths={2}
+                locale={ptBR}
               />
             </PopoverContent>
           </Popover>
@@ -132,25 +268,24 @@ export default function ReportsPage({
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
-              Total de agendamentos no mês
+              Agendamentos no período
             </CardTitle>
             <CalendarIcon className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{totalAppointmentsData.currentMonth}</div>
-            <p className="text-xs text-muted-foreground">
-              +10% em relação ao mês passado
+            <div className="text-2xl font-bold">{totalAppointmentsData.current}</div>
+            <p className={`text-xs ${totalAppointmentsData.percentageChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                {totalAppointmentsData.percentageChange.toFixed(1)}% em relação ao período anterior
             </p>
           </CardContent>
         </Card>
-        {/* Additional cards can be added here */}
       </div>
 
       <div className="grid gap-4 md:grid-cols-1 lg:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle>Serviços mais vendidos</CardTitle>
-            <CardDescription>Top 5 serviços por volume de vendas.</CardDescription>
+            <CardDescription>Top 5 serviços por volume no período.</CardDescription>
           </CardHeader>
           <CardContent>
             <ChartContainer config={chartConfig} className="h-[300px] w-full">
@@ -186,7 +321,7 @@ export default function ReportsPage({
         <Card>
           <CardHeader>
             <CardTitle>Barbeiros com mais clientes</CardTitle>
-            <CardDescription>Ranking de barbeiros por número de atendimentos.</CardDescription>
+            <CardDescription>Ranking de barbeiros por atendimentos no período.</CardDescription>
           </CardHeader>
           <CardContent>
             <ChartContainer config={chartConfig} className="h-[300px] w-full">
@@ -209,7 +344,7 @@ export default function ReportsPage({
                 />
                 <Bar
                   dataKey="value"
-                  fill="var(--color-appointments)"
+                  fill="var(--color-value)"
                   radius={4}
                 />
               </BarChart>
@@ -222,7 +357,7 @@ export default function ReportsPage({
         <CardHeader>
           <CardTitle>Horários mais disputados</CardTitle>
           <CardDescription>
-            Fluxo de agendamentos ao longo do dia.
+            Fluxo de agendamentos ao longo do dia no período.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -246,7 +381,7 @@ export default function ReportsPage({
               <Line
                 dataKey="value"
                 type="natural"
-                stroke="var(--color-appointments)"
+                stroke="var(--color-value)"
                 strokeWidth={2}
                 dot={true}
               />

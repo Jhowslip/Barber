@@ -188,7 +188,7 @@ export default function AgendaPage() {
         if (!service) throw new Error("Serviço não encontrado");
 
         const newAppointment = {
-            ID: appointments.length > 0 ? Math.max(...appointments.map(a => parseInt(a.id))) + 1 : 1,
+            ID: appointments.length > 0 ? Math.max(...appointments.map(a => parseInt(a.id))) + 2 : 1,
             Data: format(values.startTime, 'yyyy-MM-dd'),
             Hora: format(values.startTime, 'HH:mm'),
             Cliente: values.clientName,
