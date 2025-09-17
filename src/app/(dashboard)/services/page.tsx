@@ -31,6 +31,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { ServiceForm } from "@/components/service-form";
 import { useToast } from "@/hooks/use-toast";
 
@@ -80,6 +90,7 @@ export default function ServicesPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingService, setEditingService] = useState<Service | null>(null);
+  const [deactivatingService, setDeactivatingService] = useState<Service | null>(null);
   const { toast } = useToast();
   const [sortConfig, setSortConfig] = useState<{
     key: SortKey;
@@ -173,6 +184,45 @@ export default function ServicesPage() {
     }
   };
 
+  const handleDeactivateService = async () => {
+    if (!deactivatingService) return;
+
+    try {
+      const response = await fetch('https://n8n.mailizjoias.com.br/webhook/servicos', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ID: Number(deactivatingService.id),
+          Nome: deactivatingService.name,
+          Preço: deactivatingService.price,
+          "Duração (min)": deactivatingService.duration,
+          Status: 'Desativado',
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Falha ao desativar o serviço');
+      }
+
+      toast({
+        title: "Sucesso!",
+        description: "Serviço desativado com sucesso.",
+      });
+
+      setDeactivatingService(null);
+      loadServices(); // Refresh the list
+    } catch (error) {
+      console.error("Error deactivating service:", error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível desativar o serviço. Tente novamente.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleOpenAddModal = () => {
     setEditingService(null);
     setIsModalOpen(true);
@@ -181,6 +231,10 @@ export default function ServicesPage() {
   const handleOpenEditModal = (service: Service) => {
     setEditingService(service);
     setIsModalOpen(true);
+  }
+
+  const handleOpenDeactivateDialog = (service: Service) => {
+    setDeactivatingService(service);
   }
 
   const handleCloseModal = () => {
@@ -278,7 +332,7 @@ export default function ServicesPage() {
                             Editar
                             </DropdownMenuItem>
                             <DropdownMenuItem
-                            onClick={() => console.log("Deactivate", service.id)}
+                            onClick={() => handleOpenDeactivateDialog(service)}
                             className="text-red-600 focus:text-red-600 focus:bg-red-50"
                             >
                             <Trash2 className="mr-2 h-4 w-4" />
@@ -311,6 +365,20 @@ export default function ServicesPage() {
                 />
             </DialogContent>
         </Dialog>
+        <AlertDialog open={!!deactivatingService} onOpenChange={(open) => !open && setDeactivatingService(null)}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
+                <AlertDialogDescription>
+                    Esta ação desativará o serviço "{deactivatingService?.name}". Você poderá reativá-lo depois se necessário.
+                </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                <AlertDialogCancel onClick={() => setDeactivatingService(null)}>Cancelar</AlertDialogCancel>
+                <AlertDialogAction onClick={handleDeactivateService}>Confirmar</AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
     </div>
   );
 }
