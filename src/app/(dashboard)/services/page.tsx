@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Table,
   TableHeader,
@@ -34,22 +34,55 @@ type Service = {
   status: "active" | "inactive";
 };
 
-const initialServices: Service[] = [
-  { id: "1", name: "Corte Masculino", price: 50, duration: 45, status: "active" },
-  { id: "2", name: "Barba Terapia", price: 40, duration: 30, status: "active" },
-  { id: "3", name: "Penteado", price: 25, duration: 20, status: "inactive" },
-  { id: "4", name: "Hidratação Capilar", price: 60, duration: 50, status: "active" },
-  { id: "5", name: "Tintura", price: 80, duration: 75, status: "active" },
-];
+type ApiService = {
+  ID: number;
+  Nome: string;
+  Preço: number;
+  "Duração (min)": number;
+  Status: "Ativo" | "Desativado";
+};
 
 type SortKey = keyof Service;
 
+async function getServices(): Promise<Service[]> {
+    try {
+        const response = await fetch('https://n8n.mailizjoias.com.br/webhook/servicos');
+        if (!response.ok) {
+            console.error("Failed to fetch services", response.statusText);
+            return [];
+        }
+        const data: ApiService[] = await response.json();
+        return data.map(item => ({
+            id: String(item.ID),
+            name: item.Nome,
+            price: item.Preço,
+            duration: item["Duração (min)"],
+            status: item.Status === 'Ativo' ? 'active' : 'inactive'
+        }));
+    } catch (error) {
+        console.error("Error fetching services:", error);
+        return [];
+    }
+}
+
+
 export default function ServicesPage() {
-  const [services, setServices] = useState<Service[]>(initialServices);
+  const [services, setServices] = useState<Service[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [sortConfig, setSortConfig] = useState<{
     key: SortKey;
     direction: "ascending" | "descending";
   } | null>({ key: "name", direction: "ascending" });
+
+  useEffect(() => {
+    async function loadServices() {
+      setIsLoading(true);
+      const fetchedServices = await getServices();
+      setServices(fetchedServices);
+      setIsLoading(false);
+    }
+    loadServices();
+  }, []);
 
   const sortedServices = [...services].sort((a, b) => {
     if (sortConfig === null) {
@@ -136,44 +169,58 @@ export default function ServicesPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {sortedServices.map((service) => (
-              <TableRow key={service.id}>
-                <TableCell className="font-medium">{service.name}</TableCell>
-                <TableCell>{formatCurrency(service.price)}</TableCell>
-                <TableCell>{service.duration}</TableCell>
-                <TableCell>
-                  <Badge variant={service.status === "active" ? "default" : "secondary"} className={service.status === "active" ? "bg-green-500/20 text-green-700 hover:bg-green-500/30" : "bg-gray-500/20 text-gray-700 hover:bg-gray-500/30"}>
-                    {service.status === "active" ? "Ativo" : "Desativado"}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" className="h-8 w-8 p-0">
-                        <span className="sr-only">Abrir menu</span>
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuLabel>Ações</DropdownMenuLabel>
-                      <DropdownMenuItem
-                        onClick={() => console.log("Edit", service.id)}
-                      >
-                        <Pencil className="mr-2 h-4 w-4" />
-                        Editar
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => console.log("Deactivate", service.id)}
-                        className="text-red-600 focus:text-red-600 focus:bg-red-50"
-                      >
-                        <Trash2 className="mr-2 h-4 w-4" />
-                        Desativar
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </TableCell>
-              </TableRow>
-            ))}
+            {isLoading ? (
+                <TableRow>
+                    <TableCell colSpan={5} className="h-24 text-center">
+                        Carregando...
+                    </TableCell>
+                </TableRow>
+            ) : sortedServices.length > 0 ? (
+              sortedServices.map((service) => (
+                <TableRow key={service.id}>
+                  <TableCell className="font-medium">{service.name}</TableCell>
+                  <TableCell>{formatCurrency(service.price)}</TableCell>
+                  <TableCell>{service.duration}</TableCell>
+                  <TableCell>
+                    <Badge variant={service.status === "active" ? "default" : "secondary"} className={service.status === "active" ? "bg-green-500/20 text-green-700 hover:bg-green-500/30" : "bg-gray-500/20 text-gray-700 hover:bg-gray-500/30"}>
+                      {service.status === "active" ? "Ativo" : "Desativado"}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" className="h-8 w-8 p-0">
+                          <span className="sr-only">Abrir menu</span>
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuLabel>Ações</DropdownMenuLabel>
+                        <DropdownMenuItem
+                          onClick={() => console.log("Edit", service.id)}
+                        >
+                          <Pencil className="mr-2 h-4 w-4" />
+                          Editar
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => console.log("Deactivate", service.id)}
+                          className="text-red-600 focus:text-red-600 focus:bg-red-50"
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Desativar
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+              ))
+            ) : (
+                <TableRow>
+                    <TableCell colSpan={5} className="h-24 text-center">
+                        Nenhum serviço encontrado.
+                    </TableCell>
+                </TableRow>
+            )}
           </TableBody>
         </Table>
       </div>
