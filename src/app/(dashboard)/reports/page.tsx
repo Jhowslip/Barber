@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, XAxis, YAxis } from "recharts";
 import { format, subMonths, startOfMonth, endOfMonth, differenceInDays, subDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Calendar as CalendarIcon, Loader2, Banknote, Percent, Users } from "lucide-react";
+import { Calendar as CalendarIcon, Loader2, Banknote, Percent, Users, WalletCards } from "lucide-react";
 import { DateRange } from "react-day-picker";
 import { countBy, orderBy } from "lodash";
 
@@ -51,6 +51,13 @@ const formatCurrency = (value: number) => {
       currency: "BRL",
     }).format(value);
 };
+
+const getPercentageChange = (current: number, previous: number) => {
+    if (previous === 0) return current > 0 ? 100 : 0;
+    if (current === 0 && previous > 0) return -100;
+    return ((current - previous) / previous) * 100;
+};
+
 
 export default function ReportsPage({
   className,
@@ -109,7 +116,7 @@ export default function ReportsPage({
   const totalAppointmentsData = useMemo(() => {
     const currentCount = filteredAppointments.length;
     const previousCount = previousPeriodAppointments.length;
-    const percentageChange = previousCount > 0 ? ((currentCount - previousCount) / previousCount) * 100 : currentCount > 0 ? 100 : 0;
+    const percentageChange = getPercentageChange(currentCount, previousCount);
     return {
         current: currentCount,
         percentageChange: percentageChange,
@@ -119,12 +126,57 @@ export default function ReportsPage({
   const totalRevenueData = useMemo(() => {
       const currentRevenue = filteredAppointments.reduce((acc, app) => acc + app.price, 0);
       const previousRevenue = previousPeriodAppointments.reduce((acc, app) => acc + app.price, 0);
-      const percentageChange = previousRevenue > 0 ? ((currentRevenue - previousRevenue) / previousRevenue) * 100 : currentRevenue > 0 ? 100 : 0;
+      const percentageChange = getPercentageChange(currentRevenue, previousRevenue);
       return {
         current: currentRevenue,
         percentageChange: percentageChange,
       };
-  }, [filteredAppointments, previousPeriodAppointments])
+  }, [filteredAppointments, previousPeriodAppointments]);
+
+  const ticketMedioData = useMemo(() => {
+      const currentRevenue = totalRevenueData.current;
+      const currentAppointments = totalAppointmentsData.current;
+      const currentTicket = currentAppointments > 0 ? currentRevenue / currentAppointments : 0;
+      
+      const previousRevenue = previousPeriodAppointments.reduce((acc, app) => acc + app.price, 0);
+      const previousAppointments = previousPeriodAppointments.length;
+      const previousTicket = previousAppointments > 0 ? previousRevenue / previousAppointments : 0;
+      
+      const percentageChange = getPercentageChange(currentTicket, previousTicket);
+      return { current: currentTicket, percentageChange };
+  }, [totalRevenueData, totalAppointmentsData, previousPeriodAppointments]);
+
+  const totalCommissions = useMemo(() => {
+     const calculateCommissions = (apps: Appointment[]) => apps.reduce((acc, app) => {
+          const barber = barbers.find(b => b.id === app.barberId);
+          if (barber && barber.commission > 0) {
+              const commissionValue = app.price * (barber.commission / 100);
+              return acc + commissionValue;
+          }
+          return acc;
+      }, 0);
+
+      const currentCommissions = calculateCommissions(filteredAppointments);
+      const previousCommissions = calculateCommissions(previousPeriodAppointments);
+      
+      return { current: currentCommissions, previous: previousCommissions };
+
+  }, [filteredAppointments, previousPeriodAppointments, barbers]);
+
+
+  const taxaComissaoData = useMemo(() => {
+      const currentRevenue = totalRevenueData.current;
+      const currentCommissionRate = currentRevenue > 0 ? (totalCommissions.current / currentRevenue) * 100 : 0;
+      
+      const previousRevenue = previousPeriodAppointments.reduce((acc, app) => acc + app.price, 0);
+      const previousCommissionRate = previousRevenue > 0 ? (totalCommissions.previous / previousRevenue) * 100 : 0;
+      
+      const percentageChange = getPercentageChange(currentCommissionRate, previousCommissionRate);
+      
+      return { current: currentCommissionRate, percentageChange };
+
+  }, [totalRevenueData, totalCommissions, previousPeriodAppointments]);
+
 
   const topServicesData = useMemo(() => {
     const serviceCounts = countBy(filteredAppointments, 'service');
@@ -202,6 +254,26 @@ export default function ReportsPage({
                     </CardHeader>
                     <CardContent>
                         <Skeleton className="h-8 w-28 mb-2" />
+                        <Skeleton className="h-4 w-48" />
+                    </CardContent>
+                </Card>
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Ticket Médio</CardTitle>
+                        <WalletCards className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                         <Skeleton className="h-8 w-24 mb-2" />
+                        <Skeleton className="h-4 w-48" />
+                    </CardContent>
+                </Card>
+                 <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Taxa de Comissão Média</CardTitle>
+                        <Percent className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                         <Skeleton className="h-8 w-20 mb-2" />
                         <Skeleton className="h-4 w-48" />
                     </CardContent>
                 </Card>
@@ -305,7 +377,7 @@ export default function ReportsPage({
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{totalAppointmentsData.current}</div>
-            <p className={`text-xs ${totalAppointmentsData.percentageChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+            <p className={`text-xs ${totalAppointmentsData.percentageChange >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                 {totalAppointmentsData.percentageChange.toFixed(1)}% em relação ao período anterior
             </p>
           </CardContent>
@@ -319,10 +391,34 @@ export default function ReportsPage({
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{formatCurrency(totalRevenueData.current)}</div>
-            <p className={`text-xs ${totalRevenueData.percentageChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+            <p className={`text-xs ${totalRevenueData.percentageChange >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                 {totalRevenueData.percentageChange.toFixed(1)}% em relação ao período anterior
             </p>
           </CardContent>
+        </Card>
+         <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Ticket Médio</CardTitle>
+                <WalletCards className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+                <div className="text-2xl font-bold">{formatCurrency(ticketMedioData.current)}</div>
+                <p className={`text-xs ${ticketMedioData.percentageChange >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                    {ticketMedioData.percentageChange.toFixed(1)}% em relação ao período anterior
+                </p>
+            </CardContent>
+        </Card>
+        <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Taxa de Comissão Média</CardTitle>
+                <Percent className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+                <div className="text-2xl font-bold">{taxaComissaoData.current.toFixed(2)}%</div>
+                 <p className={`text-xs ${taxaComissaoData.percentageChange >= 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                    {taxaComissaoData.percentageChange.toFixed(1)}% em relação ao período anterior
+                </p>
+            </CardContent>
         </Card>
       </div>
 
