@@ -100,6 +100,7 @@ export async function getAppointments(): Promise<Appointment[]> {
             const startDate = parse(`${item.Data} ${item.Hora}`, 'yyyy-MM-dd HH:mm', new Date());
             const service = services.find(s => s.id === String(item.ID_Servico));
             const duration = service ? service.duration : 30; // Default to 30 mins if service not found
+            const price = service ? service.price : 0;
             const endDate = addMinutes(startDate, duration);
             
             let status: "confirmed" | "pending" | "canceled";
@@ -116,6 +117,7 @@ export async function getAppointments(): Promise<Appointment[]> {
                 clientPhone: item.Telefone_Cliente,
                 serviceId: String(item.ID_Servico),
                 service: item.Servico,
+                price: price,
                 barberId: String(item.ID_Barbeiro),
                 barber: item.Barbeiro,
                 start: startDate,

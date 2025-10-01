@@ -36,6 +36,7 @@ export type Appointment = {
   clientPhone: string;
   serviceId: string;
   service: string;
+  price: number;
   barberId: string;
   barber: string;
   start: Date;

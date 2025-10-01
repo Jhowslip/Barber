@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, XAxis, YAxis } from "recharts";
 import { format, subMonths, startOfMonth, endOfMonth, differenceInDays, subDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Calendar as CalendarIcon, Loader2 } from "lucide-react";
+import { Calendar as CalendarIcon, Loader2, Banknote } from "lucide-react";
 import { DateRange } from "react-day-picker";
 import { countBy, orderBy } from "lodash";
 
@@ -42,6 +42,13 @@ const chartConfig = {
     label: "Vendas",
     color: "hsl(var(--chart-1))",
   },
+};
+
+const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+    }).format(value);
 };
 
 export default function ReportsPage({
@@ -103,6 +110,16 @@ export default function ReportsPage({
     };
   }, [filteredAppointments, previousPeriodAppointments]);
 
+  const totalRevenueData = useMemo(() => {
+      const currentRevenue = filteredAppointments.reduce((acc, app) => acc + app.price, 0);
+      const previousRevenue = previousPeriodAppointments.reduce((acc, app) => acc + app.price, 0);
+      const percentageChange = previousRevenue > 0 ? ((currentRevenue - previousRevenue) / previousRevenue) * 100 : currentRevenue > 0 ? 100 : 0;
+      return {
+        current: currentRevenue,
+        percentageChange: percentageChange,
+      };
+  }, [filteredAppointments, previousPeriodAppointments])
+
   const topServicesData = useMemo(() => {
     const serviceCounts = countBy(filteredAppointments, 'service');
     return orderBy(
@@ -146,11 +163,21 @@ export default function ReportsPage({
              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Total de agendamentos no período</CardTitle>
+                        <CardTitle className="text-sm font-medium">Total de agendamentos</CardTitle>
                         <CalendarIcon className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
                         <Skeleton className="h-8 w-20 mb-2" />
+                        <Skeleton className="h-4 w-48" />
+                    </CardContent>
+                </Card>
+                 <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Receita Total Estimada</CardTitle>
+                        <Banknote className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                        <Skeleton className="h-8 w-28 mb-2" />
                         <Skeleton className="h-4 w-48" />
                     </CardContent>
                 </Card>
@@ -248,6 +275,20 @@ export default function ReportsPage({
             <div className="text-2xl font-bold">{totalAppointmentsData.current}</div>
             <p className={`text-xs ${totalAppointmentsData.percentageChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                 {totalAppointmentsData.percentageChange.toFixed(1)}% em relação ao período anterior
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">
+              Receita Total Estimada
+            </CardTitle>
+            <Banknote className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{formatCurrency(totalRevenueData.current)}</div>
+            <p className={`text-xs ${totalRevenueData.percentageChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                {totalRevenueData.percentageChange.toFixed(1)}% em relação ao período anterior
             </p>
           </CardContent>
         </Card>
