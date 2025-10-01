@@ -31,7 +31,7 @@ import { DateRange } from "react-day-picker";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { Calendar } from "@/components/ui/calendar";
-import { ChartContainer, ChartTooltip, ChartTooltipContent, PieChart, Pie, Cell, ChartBarChart, ChartBar, ChartXAxis, ChartYAxis, ChartCartesianGrid } from "@/components/ui/chart";
+import { ChartContainer, ChartTooltip, ChartTooltipContent, PieChart, Pie, Cell, ChartBarChart, ChartBar, ChartXAxis, ChartYAxis, ChartCartesianGrid, ChartLegend, ChartLegendContent } from "@/components/ui/chart";
 
 
 const formatCurrency = (value: number) => {
@@ -40,8 +40,6 @@ const formatCurrency = (value: number) => {
       currency: "BRL",
     }).format(value);
 };
-
-const COLORS = ["hsl(var(--chart-1))", "hsl(var(--chart-2))", "hsl(var(--chart-3))", "hsl(var(--chart-4))", "hsl(var(--chart-5))"];
 
 
 const chartConfig = {
@@ -159,6 +157,7 @@ export default function FinancialPage() {
     
     const getPercentageChange = (current: number, previous: number) => {
         if (previous === 0) return current > 0 ? 100 : 0;
+        if (current === 0 && previous > 0) return -100;
         return ((current - previous) / previous) * 100;
     };
     
@@ -177,9 +176,17 @@ export default function FinancialPage() {
             }, {} as { [key: string]: number });
 
         return Object.entries(data)
-            .map(([name, value]) => ({ name, value, fill: 'var(--color-text)' }))
+            .map(([name, value], index) => ({ name, value, fill: `hsl(var(--chart-${index + 1}))` }))
             .sort((a, b) => b.value - a.value);
     }, [filteredAppointments]);
+    
+    const paymentMethodChartConfig = useMemo(() => {
+        return paymentMethodData.reduce((acc, item) => {
+            acc[item.name] = { label: item.name, color: item.fill };
+            return acc;
+        }, {} as any)
+    }, [paymentMethodData])
+
 
     const revenueVsExpensesData = useMemo(() => {
         if (!date?.from || !date?.to) return [];
@@ -357,7 +364,7 @@ export default function FinancialPage() {
                                     <p className={`text-xs ${profitChange >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                                         {profitChange.toFixed(1)}% em relação ao período anterior
                                     </p>
-                               </>}
+                                </>}
                             </CardContent>
                         </Card>
                     </div>
@@ -384,6 +391,7 @@ export default function FinancialPage() {
                                         />
                                         <ChartYAxis tickFormatter={(value) => `R$${value}`} />
                                         <ChartTooltip content={<ChartTooltipContent formatter={(value) => formatCurrency(value as number)}/>} />
+                                        <ChartLegend content={<ChartLegendContent />} />
                                         <ChartBar dataKey="receita" fill="var(--color-receita)" radius={4} />
                                         <ChartBar dataKey="despesas" fill="var(--color-despesas)" radius={4} />
                                     </ChartBarChart>
@@ -405,7 +413,7 @@ export default function FinancialPage() {
                                 {isLoading ? (
                                     <Skeleton className="h-[350px] w-full" />
                                 ): paymentMethodData.length > 0 ? (
-                                    <ChartContainer config={{}} className="h-[350px] w-full">
+                                    <ChartContainer config={paymentMethodChartConfig} className="h-[350px] w-full">
                                         <PieChart>
                                             <ChartTooltip
                                                 cursor={false}
@@ -417,25 +425,28 @@ export default function FinancialPage() {
                                                 nameKey="name"
                                                 cx="50%"
                                                 cy="50%"
-                                                outerRadius={120}
+                                                outerRadius={100}
                                                 labelLine={false}
-                                                label={({ cx, cy, midAngle, innerRadius, outerRadius, percent, index }) => {
+                                                label={({ cx, cy, midAngle, innerRadius, outerRadius, percent }) => {
                                                     const RADIAN = Math.PI / 180;
                                                     const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
                                                     const x = cx + radius * Math.cos(-midAngle * RADIAN);
                                                     const y = cy + radius * Math.sin(-midAngle * RADIAN);
 
+                                                    if (percent < 0.05) return null; // Don't render label for small slices
+
                                                     return (
-                                                        <text x={x} y={y} fill="white" textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central">
+                                                        <text x={x} y={y} fill="white" textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central" fontSize={12} fontWeight="bold">
                                                             {`${(percent * 100).toFixed(0)}%`}
                                                         </text>
                                                     );
                                                 }}
                                             >
-                                                {paymentMethodData.map((entry, index) => (
-                                                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                                {paymentMethodData.map((entry) => (
+                                                    <Cell key={`cell-${entry.name}`} fill={entry.fill} />
                                                 ))}
                                             </Pie>
+                                            <ChartLegend content={<ChartLegendContent nameKey="name" />} />
                                         </PieChart>
                                     </ChartContainer>
                                 ) : (
