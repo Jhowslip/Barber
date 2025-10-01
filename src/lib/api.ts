@@ -209,3 +209,14 @@ export async function saveExpense(expense: any) {
         throw new Error('Falha ao salvar a despesa.');
     }
 }
+
+export async function deleteExpense(expenseId: number) {
+    const response = await fetch(`${BASE_URL}/despesas-delete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ID: expenseId }),
+    });
+    if (!response.ok) {
+        throw new Error('Falha ao excluir a despesa.');
+    }
+}

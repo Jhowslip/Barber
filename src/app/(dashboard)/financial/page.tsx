@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { PlusCircle, MoreHorizontal, Calendar as CalendarIcon, WalletCards, TrendingDown, TrendingUp, HandCoins } from "lucide-react";
+import { PlusCircle, MoreHorizontal, Calendar as CalendarIcon, WalletCards, TrendingDown, TrendingUp, HandCoins, Pencil, Trash2 } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -21,8 +21,25 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { getExpenses, saveExpense, getAppointments, getBarbers } from "@/lib/api";
+import { getExpenses, saveExpense, deleteExpense, getAppointments, getBarbers } from "@/lib/api";
 import { Expense, Appointment, Barber } from "@/lib/types";
 import { format, startOfMonth, endOfMonth, isWithinInterval, eachDayOfInterval, startOfDay, subDays, differenceInDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -30,7 +47,6 @@ import { ExpenseForm } from "@/components/expense-form";
 import { DateRange } from "react-day-picker";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import { Calendar } from "@/components/ui/calendar";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, PieChart, Pie, Cell, ChartBarChart, ChartBar, ChartXAxis, ChartYAxis, ChartCartesianGrid, ChartLegend, ChartLegendContent } from "@/components/ui/chart";
 
 
@@ -61,6 +77,8 @@ export default function FinancialPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
+    const [deletingExpense, setDeletingExpense] = useState<Expense | null>(null);
+
     const { toast } = useToast();
      const [date, setDate] = useState<DateRange | undefined>({
         from: startOfMonth(new Date()),
@@ -260,6 +278,35 @@ export default function FinancialPage() {
     const handleOpenAddModal = () => {
         setEditingExpense(null);
         setIsModalOpen(true);
+    };
+
+    const handleOpenEditModal = (expense: Expense) => {
+        setEditingExpense(expense);
+        setIsModalOpen(true);
+    };
+
+    const handleOpenDeleteDialog = (expense: Expense) => {
+        setDeletingExpense(expense);
+    };
+
+    const handleDeleteExpense = async () => {
+        if (!deletingExpense) return;
+        try {
+            await deleteExpense(Number(deletingExpense.id));
+            toast({
+                title: "Sucesso!",
+                description: "Lançamento excluído com sucesso.",
+            });
+            setDeletingExpense(null);
+            await loadFinancialData();
+        } catch (error) {
+            console.error("Error deleting expense:", error);
+            toast({
+                title: "Erro",
+                description: "Não foi possível excluir o lançamento. Tente novamente.",
+                variant: "destructive",
+            });
+        }
     };
 
     const handleCloseModal = () => {
@@ -482,12 +529,13 @@ export default function FinancialPage() {
                                 <TableHead>Categoria</TableHead>
                                 <TableHead>Data</TableHead>
                                 <TableHead className="text-right">Valor</TableHead>
+                                <TableHead><span className="sr-only">Ações</span></TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
                                 {isLoading ? (
                                 <TableRow>
-                                    <TableCell colSpan={4} className="h-24 text-center">
+                                    <TableCell colSpan={5} className="h-24 text-center">
                                     Carregando...
                                     </TableCell>
                                 </TableRow>
@@ -498,11 +546,32 @@ export default function FinancialPage() {
                                     <TableCell>{expense.category}</TableCell>
                                     <TableCell>{format(expense.date, "dd/MM/yyyy", { locale: ptBR })}</TableCell>
                                     <TableCell className="text-right text-red-600">-{formatCurrency(expense.amount)}</TableCell>
+                                    <TableCell className="text-right">
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger asChild>
+                                                <Button variant="ghost" className="h-8 w-8 p-0">
+                                                    <span className="sr-only">Abrir menu</span>
+                                                    <MoreHorizontal className="h-4 w-4" />
+                                                </Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent align="end">
+                                                <DropdownMenuLabel>Ações</DropdownMenuLabel>
+                                                <DropdownMenuItem onClick={() => handleOpenEditModal(expense)}>
+                                                    <Pencil className="mr-2 h-4 w-4" />
+                                                    Editar
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem onClick={() => handleOpenDeleteDialog(expense)} className="text-red-600 focus:text-red-600 focus:bg-red-50">
+                                                    <Trash2 className="mr-2 h-4 w-4" />
+                                                    Excluir
+                                                </DropdownMenuItem>
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
+                                    </TableCell>
                                     </TableRow>
                                 ))
                                 ) : (
                                 <TableRow>
-                                    <TableCell colSpan={4} className="h-24 text-center">
+                                    <TableCell colSpan={5} className="h-24 text-center">
                                     Nenhum lançamento encontrado no período.
                                     </TableCell>
                                 </TableRow>
@@ -525,6 +594,22 @@ export default function FinancialPage() {
                     />
                 </DialogContent>
             </Dialog>
+            <AlertDialog open={!!deletingExpense} onOpenChange={(open) => !open && setDeletingExpense(null)}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                    <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        Esta ação excluirá o lançamento "{deletingExpense?.description}". Esta ação não pode ser desfeita.
+                    </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                    <AlertDialogCancel onClick={() => setDeletingExpense(null)}>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleDeleteExpense} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                        Confirmar Exclusão
+                    </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 }
