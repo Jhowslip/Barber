@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -22,8 +22,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { getExpenses, saveExpense } from "@/lib/api";
-import { Expense } from "@/lib/types";
+import { getExpenses, saveExpense, getAppointments, getBarbers } from "@/lib/api";
+import { Expense, Appointment, Barber } from "@/lib/types";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ExpenseForm } from "@/components/expense-form";
@@ -37,23 +37,68 @@ const formatCurrency = (value: number) => {
 
 export default function FinancialPage() {
     const [expenses, setExpenses] = useState<Expense[]>([]);
+    const [appointments, setAppointments] = useState<Appointment[]>([]);
+    const [barbers, setBarbers] = useState<Barber[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
     const { toast } = useToast();
 
-    async function loadExpenses() {
+    async function loadFinancialData() {
         setIsLoading(true);
-        const fetchedExpenses = await getExpenses();
-        // Sort by most recent date
-        const sortedExpenses = fetchedExpenses.sort((a, b) => b.date.getTime() - a.date.getTime());
-        setExpenses(sortedExpenses);
-        setIsLoading(false);
+        try {
+            const [expensesData, appointmentsData, barbersData] = await Promise.all([
+                getExpenses(),
+                getAppointments(),
+                getBarbers(),
+            ]);
+            
+            const sortedExpenses = expensesData.sort((a, b) => b.date.getTime() - a.date.getTime());
+            setExpenses(sortedExpenses);
+            setAppointments(appointmentsData);
+            setBarbers(barbersData);
+        } catch (error) {
+             toast({
+                title: "Erro ao carregar dados",
+                description: "Não foi possível buscar os dados financeiros. Tente novamente.",
+                variant: "destructive",
+            });
+        } finally {
+            setIsLoading(false);
+        }
     }
     
     useEffect(() => {
-        loadExpenses();
+        loadFinancialData();
     }, []);
+
+    const financialSummary = useMemo(() => {
+        const confirmedAppointments = appointments.filter(a => a.status === 'confirmed');
+
+        const grossRevenue = confirmedAppointments.reduce((acc, app) => acc + app.price, 0);
+
+        const totalCommissions = confirmedAppointments.reduce((acc, app) => {
+            const barber = barbers.find(b => b.id === app.barberId);
+            if (barber && barber.commission > 0) {
+                return acc + (app.price * (barber.commission / 100));
+            }
+            return acc;
+        }, 0);
+        
+        const totalOtherExpenses = expenses.reduce((acc, exp) => acc + exp.amount, 0);
+        
+        const totalExpenses = totalCommissions + totalOtherExpenses;
+        
+        const netProfit = grossRevenue - totalExpenses;
+
+        return {
+            grossRevenue,
+            totalExpenses,
+            netProfit,
+        };
+
+    }, [appointments, barbers, expenses]);
+
 
     const handleSaveExpense = async (values: any) => {
         try {
@@ -77,7 +122,7 @@ export default function FinancialPage() {
 
             setIsModalOpen(false);
             setEditingExpense(null);
-            await loadExpenses();
+            await loadFinancialData(); // Reload all data
         } catch (error) {
             console.error("Error saving expense:", error);
             toast({
@@ -123,8 +168,8 @@ export default function FinancialPage() {
                                 <span className="text-2xl">💰</span>
                             </CardHeader>
                             <CardContent>
-                               <Skeleton className="h-8 w-32 mb-2" />
-                               <Skeleton className="h-4 w-48" />
+                               {isLoading ? <Skeleton className="h-8 w-32 mb-2" /> : <div className="text-2xl font-bold">{formatCurrency(financialSummary.grossRevenue)}</div>}
+                               <p className="text-xs text-muted-foreground">Receita total de agendamentos confirmados.</p>
                             </CardContent>
                         </Card>
                          <Card>
@@ -133,8 +178,8 @@ export default function FinancialPage() {
                                  <span className="text-2xl">💸</span>
                             </CardHeader>
                             <CardContent>
-                               <Skeleton className="h-8 w-28 mb-2" />
-                               <Skeleton className="h-4 w-48" />
+                               {isLoading ? <Skeleton className="h-8 w-28 mb-2" /> : <div className="text-2xl font-bold">{formatCurrency(financialSummary.totalExpenses)}</div>}
+                               <p className="text-xs text-muted-foreground">Comissões + despesas lançadas.</p>
                             </CardContent>
                         </Card>
                          <Card>
@@ -143,8 +188,8 @@ export default function FinancialPage() {
                                 <span className="text-2xl">📈</span>
                             </CardHeader>
                             <CardContent>
-                               <Skeleton className="h-8 w-24 mb-2" />
-                               <Skeleton className="h-4 w-48" />
+                               {isLoading ? <Skeleton className="h-8 w-24 mb-2" /> : <div className="text-2xl font-bold">{formatCurrency(financialSummary.netProfit)}</div>}
+                               <p className="text-xs text-muted-foreground">Receita Bruta - Despesas Totais.</p>
                             </CardContent>
                         </Card>
                     </div>
@@ -206,7 +251,7 @@ export default function FinancialPage() {
                                     <TableCell className="font-medium">{expense.description}</TableCell>
                                     <TableCell>{expense.category}</TableCell>
                                     <TableCell>{format(expense.date, "dd/MM/yyyy", { locale: ptBR })}</TableCell>
-                                    <TableCell className="text-right">{formatCurrency(expense.amount)}</TableCell>
+                                    <TableCell className="text-right text-red-600">-{formatCurrency(expense.amount)}</TableCell>
                                     </TableRow>
                                 ))
                                 ) : (
