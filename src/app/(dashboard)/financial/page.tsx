@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { PlusCircle, MoreHorizontal, Calendar as CalendarIcon } from "lucide-react";
+import { PlusCircle, MoreHorizontal, Calendar as CalendarIcon, WalletCards, TrendingDown, TrendingUp, HandCoins } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -24,7 +24,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { getExpenses, saveExpense, getAppointments, getBarbers } from "@/lib/api";
 import { Expense, Appointment, Barber } from "@/lib/types";
-import { format, startOfMonth, endOfMonth, isWithinInterval, eachDayOfInterval, startOfDay } from "date-fns";
+import { format, startOfMonth, endOfMonth, isWithinInterval, eachDayOfInterval, startOfDay, subDays, differenceInDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ExpenseForm } from "@/components/expense-form";
 import { DateRange } from "react-day-picker";
@@ -103,8 +103,8 @@ export default function FinancialPage() {
             return { filteredAppointments: [], filteredExpenses: [] };
         }
         const interval = {
-            start: date.from,
-            end: date.to || date.from,
+            start: startOfDay(date.from),
+            end: date.to ? endOfMonth(date.to) : endOfMonth(date.from),
         };
 
         const appointmentsInRange = appointments.filter(a => isWithinInterval(a.start, interval));
@@ -112,36 +112,62 @@ export default function FinancialPage() {
 
         return { filteredAppointments: appointmentsInRange, filteredExpenses: expensesInRange };
     }, [date, appointments, expenses]);
+    
+    
+    const { financialSummary, previousFinancialSummary } = useMemo(() => {
+        const calculateSummary = (apps: Appointment[], exps: Expense[]) => {
+            const confirmedAppointments = apps.filter(a => a.status === 'confirmed');
+            const grossRevenue = confirmedAppointments.reduce((acc, app) => acc + app.price, 0);
 
-    const financialSummary = useMemo(() => {
-        const confirmedAppointments = filteredAppointments.filter(a => a.status === 'confirmed');
+            const totalCommissions = confirmedAppointments.reduce((acc, app) => {
+                const barber = barbers.find(b => b.id === app.barberId);
+                if (barber && barber.commission > 0) {
+                    return acc + (app.price * (barber.commission / 100));
+                }
+                return acc;
+            }, 0);
+            
+            const totalOtherExpenses = exps.reduce((acc, exp) => acc + exp.amount, 0);
+            const totalExpenses = totalCommissions + totalOtherExpenses;
+            const netProfit = grossRevenue - totalExpenses;
 
-        const grossRevenue = confirmedAppointments.reduce((acc, app) => acc + app.price, 0);
-
-        const totalCommissions = confirmedAppointments.reduce((acc, app) => {
-            const barber = barbers.find(b => b.id === app.barberId);
-            if (barber && barber.commission > 0) {
-                return acc + (app.price * (barber.commission / 100));
-            }
-            return acc;
-        }, 0);
-        
-        const totalOtherExpenses = filteredExpenses.reduce((acc, exp) => acc + exp.amount, 0);
-        
-        const totalExpenses = totalCommissions + totalOtherExpenses;
-        
-        const netProfit = grossRevenue - totalExpenses;
-
-        return {
-            grossRevenue,
-            totalExpenses,
-            netProfit,
-            totalCommissions,
+            return { grossRevenue, totalExpenses, netProfit, totalCommissions };
         };
 
-    }, [filteredAppointments, barbers, filteredExpenses]);
+        const currentSummary = calculateSummary(filteredAppointments, filteredExpenses);
 
-     const paymentMethodData = useMemo(() => {
+        // Previous Period Calculation
+        let prevSummary = { grossRevenue: 0, totalExpenses: 0, netProfit: 0, totalCommissions: 0 };
+        if (date?.from) {
+            const to = date.to || date.from;
+            const diff = differenceInDays(to, date.from);
+            
+            const prevFrom = subDays(date.from, diff + 1);
+            const prevTo = subDays(to, diff + 1);
+
+            const prevInterval = { start: prevFrom, end: prevTo };
+
+            const prevAppointments = appointments.filter(a => isWithinInterval(a.start, prevInterval));
+            const prevExpenses = expenses.filter(e => isWithinInterval(e.date, prevInterval));
+            
+            prevSummary = calculateSummary(prevAppointments, prevExpenses);
+        }
+
+        return { financialSummary: currentSummary, previousFinancialSummary: prevSummary };
+
+    }, [filteredAppointments, filteredExpenses, barbers, date, appointments, expenses]);
+    
+    const getPercentageChange = (current: number, previous: number) => {
+        if (previous === 0) return current > 0 ? 100 : 0;
+        return ((current - previous) / previous) * 100;
+    };
+    
+    const revenueChange = getPercentageChange(financialSummary.grossRevenue, previousFinancialSummary.grossRevenue);
+    const expensesChange = getPercentageChange(financialSummary.totalExpenses, previousFinancialSummary.totalExpenses);
+    const profitChange = getPercentageChange(financialSummary.netProfit, previousFinancialSummary.netProfit);
+
+
+    const paymentMethodData = useMemo(() => {
         const data = filteredAppointments
             .filter(a => a.status === 'confirmed' && a.paymentMethod)
             .reduce((acc, app) => {
@@ -151,7 +177,7 @@ export default function FinancialPage() {
             }, {} as { [key: string]: number });
 
         return Object.entries(data)
-            .map(([name, value]) => ({ name, value, fill: 'var(--color-text)' })) // fill is managed by Cell
+            .map(([name, value]) => ({ name, value, fill: 'var(--color-text)' }))
             .sort((a, b) => b.value - a.value);
     }, [filteredAppointments]);
 
@@ -163,12 +189,10 @@ export default function FinancialPage() {
         return intervalDays.map(day => {
             const dayStr = format(day, 'yyyy-MM-dd');
             
-            // Daily Revenue
             const dailyRevenue = filteredAppointments
                 .filter(a => a.status === 'confirmed' && format(a.start, 'yyyy-MM-dd') === dayStr)
                 .reduce((acc, a) => acc + a.price, 0);
             
-            // Daily Commissions
             const dailyCommissions = filteredAppointments
                 .filter(a => a.status === 'confirmed' && format(a.start, 'yyyy-MM-dd') === dayStr)
                 .reduce((acc, app) => {
@@ -179,7 +203,6 @@ export default function FinancialPage() {
                     return acc;
                 }, 0);
                 
-            // Daily Other Expenses
             const dailyOtherExpenses = filteredExpenses
                 .filter(e => format(e.date, 'yyyy-MM-dd') === dayStr)
                 .reduce((acc, e) => acc + e.amount, 0);
@@ -298,31 +321,43 @@ export default function FinancialPage() {
                          <Card>
                             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                                 <CardTitle className="text-sm font-medium">Receita Bruta</CardTitle>
-                                <span className="text-2xl">💰</span>
+                                <HandCoins className="h-4 w-4 text-muted-foreground" />
                             </CardHeader>
                             <CardContent>
-                               {isLoading ? <Skeleton className="h-8 w-32 mb-2" /> : <div className="text-2xl font-bold">{formatCurrency(financialSummary.grossRevenue)}</div>}
-                               <p className="text-xs text-muted-foreground">Receita de agendamentos no período.</p>
+                               {isLoading ? <Skeleton className="h-8 w-32 mb-2" /> : <>
+                                    <div className="text-2xl font-bold">{formatCurrency(financialSummary.grossRevenue)}</div>
+                                    <p className={`text-xs ${revenueChange >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                                        {revenueChange.toFixed(1)}% em relação ao período anterior
+                                    </p>
+                               </>}
                             </CardContent>
                         </Card>
                          <Card>
                             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                                 <CardTitle className="text-sm font-medium">Despesas Totais</CardTitle>
-                                 <span className="text-2xl">💸</span>
+                                 <TrendingDown className="h-4 w-4 text-muted-foreground" />
                             </CardHeader>
                             <CardContent>
-                               {isLoading ? <Skeleton className="h-8 w-28 mb-2" /> : <div className="text-2xl font-bold">{formatCurrency(financialSummary.totalExpenses)}</div>}
-                               <p className="text-xs text-muted-foreground">Comissões + despesas no período.</p>
+                               {isLoading ? <Skeleton className="h-8 w-28 mb-2" /> : <>
+                                    <div className="text-2xl font-bold">{formatCurrency(financialSummary.totalExpenses)}</div>
+                                    <p className={`text-xs ${expensesChange >= 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                                        {expensesChange.toFixed(1)}% em relação ao período anterior
+                                    </p>
+                               </>}
                             </CardContent>
                         </Card>
                          <Card>
                             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                                 <CardTitle className="text-sm font-medium">Lucro Líquido</CardTitle>
-                                <span className="text-2xl">📈</span>
+                                <TrendingUp className="h-4 w-4 text-muted-foreground" />
                             </CardHeader>
                             <CardContent>
-                               {isLoading ? <Skeleton className="h-8 w-24 mb-2" /> : <div className="text-2xl font-bold">{formatCurrency(financialSummary.netProfit)}</div>}
-                                <p className="text-xs text-muted-foreground">Lucro estimado no período.</p>
+                               {isLoading ? <Skeleton className="h-8 w-24 mb-2" /> : <>
+                                    <div className="text-2xl font-bold">{formatCurrency(financialSummary.netProfit)}</div>
+                                    <p className={`text-xs ${profitChange >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                                        {profitChange.toFixed(1)}% em relação ao período anterior
+                                    </p>
+                               </>}
                             </CardContent>
                         </Card>
                     </div>
@@ -336,7 +371,7 @@ export default function FinancialPage() {
                             <CardContent className="pl-2">
                                {isLoading ? (
                                     <Skeleton className="h-[350px] w-full" />
-                               ) : (
+                               ) : revenueVsExpensesData.length > 0 ? (
                                 <ChartContainer config={chartConfig} className="h-[350px] w-full">
                                     <ChartBarChart data={revenueVsExpensesData}>
                                         <ChartCartesianGrid vertical={false} />
@@ -347,13 +382,18 @@ export default function FinancialPage() {
                                             axisLine={false}
                                             tickFormatter={(value) => value.substring(0, 5)}
                                         />
-                                        <ChartYAxis />
-                                        <ChartTooltip content={<ChartTooltipContent />} />
+                                        <ChartYAxis tickFormatter={(value) => `R$${value}`} />
+                                        <ChartTooltip content={<ChartTooltipContent formatter={(value) => formatCurrency(value as number)}/>} />
                                         <ChartBar dataKey="receita" fill="var(--color-receita)" radius={4} />
                                         <ChartBar dataKey="despesas" fill="var(--color-despesas)" radius={4} />
                                     </ChartBarChart>
                                 </ChartContainer>
-                               )}
+                               ) : (
+                                    <div className="flex h-[350px] w-full flex-col items-center justify-center text-center">
+                                         <TrendingUp className="h-10 w-10 text-muted-foreground mb-4"/>
+                                         <p className="text-sm text-muted-foreground">Nenhuma receita ou despesa registrada no período.</p>
+                                    </div>
+                                )}
                             </CardContent>
                         </Card>
                          <Card className="col-span-3">
@@ -400,6 +440,7 @@ export default function FinancialPage() {
                                     </ChartContainer>
                                 ) : (
                                     <div className="flex h-[350px] w-full flex-col items-center justify-center text-center">
+                                         <WalletCards className="h-10 w-10 text-muted-foreground mb-4"/>
                                          <p className="text-sm text-muted-foreground">Nenhuma receita registrada no período.</p>
                                     </div>
                                 )}
@@ -475,7 +516,6 @@ export default function FinancialPage() {
             </Dialog>
         </div>
     );
-
-    
+}
 
     
