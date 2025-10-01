@@ -1,6 +1,6 @@
 
-import { addMinutes, parse } from 'date-fns';
-import { ApiService, Service, ApiBarber, Barber, Appointment, ApiAppointment, ApiConfig } from './types';
+import { addMinutes, parse, format, isValid } from 'date-fns';
+import { ApiService, Service, ApiBarber, Barber, Appointment, ApiAppointment, ApiConfig, ApiExpense, Expense } from './types';
 
 const BASE_URL = 'https://n8n.mailizjoias.com.br/webhook';
 
@@ -34,7 +34,6 @@ export async function saveService(service: Omit<ApiService, 'row_number'>) {
     if (!response.ok) {
         throw new Error('Falha ao salvar o serviço');
     }
-    // Return void or a success indicator, as the response body is empty.
 }
 
 
@@ -69,7 +68,6 @@ export async function saveBarber(barber: Omit<ApiBarber, 'row_number'>) {
     if (!response.ok) {
         throw new Error('Falha ao salvar o barbeiro');
     }
-    // Return void or a success indicator, as the response body is empty.
 }
 
 // Appointments
@@ -144,7 +142,6 @@ export async function saveAppointment(appointment: any) {
     if (!response.ok) {
         throw new Error('Falha ao criar o agendamento.');
     }
-    // Return void or a success indicator, as the response body is empty.
 }
 
 
@@ -175,5 +172,40 @@ export async function saveSettings(settings: any) {
     if (!response.ok) {
         throw new Error('Falha ao salvar as configurações.');
     }
-    // Return void or a success indicator, as the response body is empty.
+}
+
+// Expenses
+export async function getExpenses(): Promise<Expense[]> {
+    try {
+        const response = await fetch(`${BASE_URL}/despesas`);
+        if (!response.ok) {
+            throw new Error("Failed to fetch expenses");
+        }
+        const data: ApiExpense[] = await response.json();
+        return data.map(item => {
+            // The API returns date as 'yyyy-MM-dd'. We parse it into a Date object.
+            const date = parse(item.Data, 'yyyy-MM-dd', new Date());
+            return {
+                id: String(item.ID),
+                description: item.Descricao,
+                amount: item.Valor,
+                date: isValid(date) ? date : new Date(), // Fallback to now if date is invalid
+                category: item.Categoria,
+            };
+        });
+    } catch (error) {
+        console.error("Error fetching expenses:", error);
+        return [];
+    }
+}
+
+export async function saveExpense(expense: any) {
+    const response = await fetch(`${BASE_URL}/despesas`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(expense),
+    });
+    if (!response.ok) {
+        throw new Error('Falha ao salvar a despesa.');
+    }
 }

@@ -71,3 +71,19 @@ export type ApiConfig = {
   Responder_Audio: string;
   Enviar_Reacoes: string;
 };
+
+export type Expense = {
+  id: string;
+  description: string;
+  amount: number;
+  date: Date;
+  category: string;
+};
+
+export type ApiExpense = {
+  ID: number;
+  Descricao: string;
+  Valor: number;
+  Data: string; // "yyyy-MM-dd"
+  Categoria: string;
+};

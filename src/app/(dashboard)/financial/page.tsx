@@ -1,13 +1,102 @@
 
 "use client";
 
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { PlusCircle } from "lucide-react";
+import { PlusCircle, MoreHorizontal } from "lucide-react";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { useToast } from "@/hooks/use-toast";
+import { getExpenses, saveExpense } from "@/lib/api";
+import { Expense } from "@/lib/types";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { ExpenseForm } from "@/components/expense-form";
+
+const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+    }).format(value);
+};
 
 export default function FinancialPage() {
+    const [expenses, setExpenses] = useState<Expense[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
+    const { toast } = useToast();
+
+    async function loadExpenses() {
+        setIsLoading(true);
+        const fetchedExpenses = await getExpenses();
+        // Sort by most recent date
+        const sortedExpenses = fetchedExpenses.sort((a, b) => b.date.getTime() - a.date.getTime());
+        setExpenses(sortedExpenses);
+        setIsLoading(false);
+    }
+    
+    useEffect(() => {
+        loadExpenses();
+    }, []);
+
+    const handleSaveExpense = async (values: any) => {
+        try {
+            const isEditing = !!editingExpense;
+            const nextId = expenses.length > 0 ? Math.max(...expenses.map(e => parseInt(e.id))) + 1 : 1;
+      
+            const body = {
+                ...(isEditing ? { ID: Number(editingExpense.id) } : { ID: nextId }),
+                Descricao: values.description,
+                Valor: values.amount,
+                Data: format(values.date, 'yyyy-MM-dd'),
+                Categoria: values.category,
+            };
+
+            await saveExpense(body);
+
+            toast({
+                title: "Sucesso!",
+                description: `Lançamento ${isEditing ? 'atualizado' : 'adicionado'} com sucesso.`,
+            });
+
+            setIsModalOpen(false);
+            setEditingExpense(null);
+            await loadExpenses();
+        } catch (error) {
+            console.error("Error saving expense:", error);
+            toast({
+                title: "Erro",
+                description: "Não foi possível salvar o lançamento. Tente novamente.",
+                variant: "destructive",
+            });
+        }
+    };
+    
+    const handleOpenAddModal = () => {
+        setEditingExpense(null);
+        setIsModalOpen(true);
+    };
+
+    const handleCloseModal = () => {
+        setIsModalOpen(false);
+        setEditingExpense(null);
+    };
 
     return (
         <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
@@ -88,18 +177,63 @@ export default function FinancialPage() {
                                 Visualize e gerencie as despesas e receitas.
                             </p>
                         </div>
-                        <Button>
+                        <Button onClick={handleOpenAddModal}>
                             <PlusCircle className="mr-2 h-4 w-4" />
                             Adicionar Lançamento
                         </Button>
                     </div>
                      <Card>
                         <CardContent className="pt-6">
-                           <Skeleton className="h-[400px] w-full" />
+                          <Table>
+                            <TableHeader>
+                                <TableRow>
+                                <TableHead>Descrição</TableHead>
+                                <TableHead>Categoria</TableHead>
+                                <TableHead>Data</TableHead>
+                                <TableHead className="text-right">Valor</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {isLoading ? (
+                                <TableRow>
+                                    <TableCell colSpan={4} className="h-24 text-center">
+                                    Carregando...
+                                    </TableCell>
+                                </TableRow>
+                                ) : expenses.length > 0 ? (
+                                expenses.map((expense) => (
+                                    <TableRow key={expense.id}>
+                                    <TableCell className="font-medium">{expense.description}</TableCell>
+                                    <TableCell>{expense.category}</TableCell>
+                                    <TableCell>{format(expense.date, "dd/MM/yyyy", { locale: ptBR })}</TableCell>
+                                    <TableCell className="text-right">{formatCurrency(expense.amount)}</TableCell>
+                                    </TableRow>
+                                ))
+                                ) : (
+                                <TableRow>
+                                    <TableCell colSpan={4} className="h-24 text-center">
+                                    Nenhum lançamento encontrado.
+                                    </TableCell>
+                                </TableRow>
+                                )}
+                            </TableBody>
+                            </Table>
                         </CardContent>
                     </Card>
                 </TabsContent>
             </Tabs>
+            <Dialog open={isModalOpen} onOpenChange={handleCloseModal}>
+                <DialogContent className="sm:max-w-[425px]">
+                    <DialogHeader>
+                        <DialogTitle>{editingExpense ? "Editar Lançamento" : "Adicionar Novo Lançamento"}</DialogTitle>
+                    </DialogHeader>
+                    <ExpenseForm
+                        initialData={editingExpense}
+                        onSave={handleSaveExpense}
+                        onCancel={handleCloseModal}
+                    />
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }
