@@ -68,6 +68,7 @@ export default function AgendaPage() {
 
   const handlePrevWeek = () => setCurrentDate(subDays(currentDate, 7));
   const handleNextWeek = () => setCurrentDate(addDays(currentDate, 7));
+  const handleToday = () => setCurrentDate(new Date());
 
   const handleSlotClick = (day: Date, time: Date) => {
     const slotDateTime = new Date(day);
@@ -220,10 +221,13 @@ export default function AgendaPage() {
         <div className="flex items-center space-x-2">
           <Button variant="outline" onClick={handlePrevWeek}>
             <ChevronLeft className="h-4 w-4" />
-            <span className="hidden md:inline ml-2">Semana Anterior</span>
+            <span className="hidden md:inline ml-2">Anterior</span>
+          </Button>
+           <Button variant="outline" onClick={handleToday}>
+            Hoje
           </Button>
           <Button variant="outline" onClick={handleNextWeek}>
-            <span className="hidden md:inline mr-2">Próxima Semana</span>
+            <span className="hidden md:inline mr-2">Próxima</span>
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
@@ -254,7 +258,7 @@ export default function AgendaPage() {
                   {format(day, "dd/MM")}
                 </p>
               </div>
-              <div className="relative flex-1">
+              <div className="relative flex-1 grid grid-rows-20">
                 {timeSlots.map((time) => (
                   <div
                     key={time.toString()}
@@ -265,9 +269,8 @@ export default function AgendaPage() {
                 {appointments
                   .filter(app => format(app.start, 'yyyy-MM-dd') === format(day, 'yyyy-MM-dd'))
                   .map(app => {
-                    const top = ((app.start.getHours() - 9) * 60 + app.start.getMinutes()) / 30 * 5; // 5rem = h-20
-                    const duration = (app.end.getTime() - app.start.getTime()) / (1000 * 60);
-                    const height = (duration / 30) * 5; // 5rem = h-20
+                    const startRow = (app.start.getHours() - 9) * 2 + Math.floor(app.start.getMinutes() / 30) + 1;
+                    const durationInSlots = Math.ceil((app.end.getTime() - app.start.getTime()) / (1000 * 60 * 30));
                     
                     const statusClass = {
                         confirmed: 'bg-primary/90 hover:bg-primary',
@@ -278,8 +281,8 @@ export default function AgendaPage() {
                     return (
                         <div
                             key={app.id}
-                            className={`absolute w-full p-2 rounded-lg text-white text-xs cursor-pointer z-10 transition-colors ${statusClass[app.status]}`}
-                            style={{ top: `${top}rem`, height: `${height}rem`, left: '0.1rem', right: '0.1rem', width: 'calc(100% - 0.2rem)' }}
+                            className={`relative p-2 m-px rounded-lg text-white text-xs cursor-pointer z-10 transition-colors ${statusClass[app.status]}`}
+                            style={{ gridRow: `${startRow} / span ${durationInSlots}` }}
                             onClick={() => handleAppointmentClick(app)}
                         >
                             <p className="font-bold truncate">{app.clientName}</p>
@@ -368,3 +371,5 @@ export default function AgendaPage() {
     </div>
   );
 }
+
+    
