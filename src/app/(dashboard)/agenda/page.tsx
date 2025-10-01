@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { format, addDays, subDays, startOfWeek, endOfWeek, addMinutes, areIntervalsOverlapping, parse } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { ChevronLeft, ChevronRight, X, Clock, User, Scissors, Calendar as CalendarIcon, Loader2, Banknote } from "lucide-react";
+import { ChevronLeft, ChevronRight, X, Clock, User, Scissors, Calendar as CalendarIcon, Loader2, Banknote, AlertTriangle } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -30,9 +30,9 @@ export default function AgendaPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [isCanceling, setIsCanceling] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const [newAppointmentSlot, setNewAppointmentSlot] = useState<Date | null>(null);
-  const [appointmentToCancel, setAppointmentToCancel] = useState<Appointment | null>(null);
   const { toast } = useToast();
 
   const loadAgendaData = async () => {
@@ -77,6 +77,7 @@ export default function AgendaPage() {
     setNewAppointmentSlot(slotDateTime);
     setSelectedAppointment(null);
     setIsEditing(false);
+    setIsCanceling(false);
     setIsModalOpen(true);
   };
 
@@ -84,6 +85,7 @@ export default function AgendaPage() {
     setSelectedAppointment(appointment);
     setNewAppointmentSlot(null);
     setIsEditing(false);
+    setIsCanceling(false);
     setIsModalOpen(true);
   };
   
@@ -176,7 +178,6 @@ export default function AgendaPage() {
         });
 
         setIsModalOpen(false);
-        setAppointmentToCancel(null);
         await loadAgendaData();
 
     } catch (error) {
@@ -241,6 +242,7 @@ export default function AgendaPage() {
     if (!open) {
         setSelectedAppointment(null);
         setIsEditing(false);
+        setIsCanceling(false);
     }
     setIsModalOpen(open);
   }
@@ -248,12 +250,14 @@ export default function AgendaPage() {
   const handleCancelForm = () => {
     if (selectedAppointment) {
         setIsEditing(false);
+        setIsCanceling(false);
     } else {
         setIsModalOpen(false);
     }
   }
   
   const getModalTitle = () => {
+    if (isCanceling) return "Confirmar Cancelamento";
     if (selectedAppointment) {
       return isEditing ? "Editar Agendamento" : "Detalhes do Agendamento";
     }
@@ -354,7 +358,28 @@ export default function AgendaPage() {
             <DialogTitle>{getModalTitle()}</DialogTitle>
           </DialogHeader>
           
-          {selectedAppointment && !isEditing ? (
+          {isCanceling && selectedAppointment ? (
+            <div className="py-4 space-y-4">
+                <div className="flex items-start gap-3 text-destructive">
+                    <AlertTriangle className="h-5 w-5 mt-0.5"/>
+                    <div className="flex flex-col">
+                        <h4 className="font-semibold">Atenção</h4>
+                        <p className="text-sm">
+                            Você tem certeza que deseja cancelar o agendamento de <span className="font-bold">{selectedAppointment.clientName}</span>? Esta ação não pode ser desfeita.
+                        </p>
+                    </div>
+                </div>
+                 <DialogFooter className="pt-4">
+                    <Button variant="outline" onClick={() => setIsCanceling(false)} disabled={isSubmitting}>
+                        Voltar
+                    </Button>
+                    <Button variant="destructive" onClick={() => handleStatusChange(selectedAppointment, "Cancelado")} disabled={isSubmitting}>
+                        {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Confirmar Cancelamento
+                    </Button>
+                </DialogFooter>
+            </div>
+          ) : selectedAppointment && !isEditing ? (
              <div className="space-y-4 py-4">
                 <div className="flex items-center gap-4">
                     <User className="h-5 w-5 text-muted-foreground"/>
@@ -385,8 +410,8 @@ export default function AgendaPage() {
                     </div>
                 </div>
                 <DialogFooter className="pt-4">
-                    <Button variant="destructive" onClick={() => { setAppointmentToCancel(selectedAppointment); setIsModalOpen(false); }} disabled={isSubmitting}>
-                         {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    <Button variant="destructive" onClick={() => setIsCanceling(true)} disabled={isSubmitting}>
+                        {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                         Cancelar
                     </Button>
                     <Button onClick={() => setIsEditing(true)}>Editar</Button>
@@ -415,23 +440,6 @@ export default function AgendaPage() {
           )}
         </DialogContent>
       </Dialog>
-      
-      <AlertDialog open={!!appointmentToCancel} onOpenChange={(open) => !open && setAppointmentToCancel(null)}>
-        <AlertDialogContent>
-            <AlertDialogHeader>
-            <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
-            <AlertDialogDescription>
-                Esta ação cancelará o agendamento de "{appointmentToCancel?.clientName}". Esta ação não pode ser desfeita.
-            </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-                <AlertDialogCancel onClick={() => setAppointmentToCancel(null)}>Voltar</AlertDialogCancel>
-                <AlertDialogAction onClick={() => appointmentToCancel && handleStatusChange(appointmentToCancel, "Cancelado")} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                    Confirmar Cancelamento
-                </AlertDialogAction>
-            </AlertDialogFooter>
-        </AlertDialogContent>
-    </AlertDialog>
     </div>
   );
 }
