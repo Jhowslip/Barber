@@ -9,6 +9,7 @@ import {
   Scissors,
   Settings,
   Users,
+  Banknote,
 } from 'lucide-react';
 
 import {
@@ -33,6 +34,10 @@ export default function DashboardLayout({
   const pathname = usePathname();
 
   const isActive = (path: string) => {
+    // Exact match or starts with for financial sub-pages
+    if (path === '/financial') {
+      return pathname.startsWith(path);
+    }
     return pathname === path;
   };
 
@@ -80,6 +85,18 @@ export default function DashboardLayout({
                 <Link href="/agenda">
                   <Calendar />
                   <span>Agenda</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+             <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
+                isActive={isActive('/financial')}
+                tooltip="Financeiro"
+              >
+                <Link href="/financial">
+                  <Banknote />
+                  <span>Financeiro</span>
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
