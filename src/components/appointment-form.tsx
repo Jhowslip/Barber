@@ -141,11 +141,9 @@ export function AppointmentForm({ initialData, onSave, onCancel, isSubmitting }:
                   mask="(99) 99999-9999"
                   value={field.value}
                   onChange={field.onChange}
-                  onBlur={field.onBlur}
-                  name={field.name}
-                  disabled={isSubmitting}
                 >
-                  {(inputProps: any) => <Input {...inputProps} placeholder="(99) 99999-9999" />}
+                  {/* @ts-ignore */}
+                  {(inputProps) => <Input {...inputProps} placeholder="(99) 99999-9999" />}
                 </InputMask>
               </FormControl>
               <FormMessage />
