@@ -6,6 +6,7 @@ import * as z from "zod";
 import { format } from "date-fns";
 import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
+import InputMask from "react-input-mask";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -27,11 +28,13 @@ import {
 import { DialogFooter } from "./ui/dialog";
 import { Skeleton } from "./ui/skeleton";
 import { getServices, getBarbers, getSettings } from "@/lib/api";
-import { Service, Barber, ApiConfig } from "@/lib/types";
+import { Service, Barber } from "@/lib/types";
+
+const phoneRegex = /^\(\d{2}\) \d{5}-\d{4}$/;
 
 const formSchema = z.object({
   clientName: z.string().min(1, "Nome do cliente é obrigatório."),
-  clientPhone: z.string().min(1, "Telefone do cliente é obrigatório."),
+  clientPhone: z.string().regex(phoneRegex, "Formato de telefone inválido. Use (99) 99999-9999."),
   serviceId: z.string().min(1, "Selecione um serviço."),
   barberId: z.string().min(1, "Selecione um barbeiro."),
   paymentMethod: z.string().optional(),
@@ -80,7 +83,7 @@ export function AppointmentForm({ initialData, onSave, onCancel, isSubmitting }:
                 setPaymentMethods(settingsData.Formas_Pagamento.split(',').map(p => p.trim()));
             }
 
-        } catch (error) {
+        } catch (error) => {
             console.error("Failed to fetch data for form", error);
         } finally {
             setIsLoading(false);
@@ -134,7 +137,16 @@ export function AppointmentForm({ initialData, onSave, onCancel, isSubmitting }:
             <FormItem>
               <FormLabel>Telefone do Cliente</FormLabel>
               <FormControl>
-                <Input placeholder="(99) 99999-9999" {...field} />
+                <InputMask
+                  mask="(99) 99999-9999"
+                  value={field.value}
+                  onChange={field.onChange}
+                  onBlur={field.onBlur}
+                  name={field.name}
+                  disabled={isSubmitting}
+                >
+                  {(inputProps: any) => <Input {...inputProps} placeholder="(99) 99999-9999" />}
+                </InputMask>
               </FormControl>
               <FormMessage />
             </FormItem>
