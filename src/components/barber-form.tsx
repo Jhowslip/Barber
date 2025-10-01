@@ -30,6 +30,7 @@ import { Barber } from "@/lib/types";
 const formSchema = z.object({
   name: z.string().min(1, "Nome do barbeiro é obrigatório."),
   specialty: z.string().min(1, "Especialidade é obrigatória."),
+  commission: z.coerce.number().min(0, "A comissão não pode ser negativa.").max(100, "A comissão não pode ser maior que 100."),
   status: z.enum(["active", "inactive"]),
   notes: z.string().optional(),
 });
@@ -47,6 +48,7 @@ export function BarberForm({ initialData, onSave, onCancel }: BarberFormProps) {
     defaultValues: {
       name: "",
       specialty: "",
+      commission: 0,
       status: "active",
       notes: "",
     },
@@ -57,6 +59,7 @@ export function BarberForm({ initialData, onSave, onCancel }: BarberFormProps) {
       form.reset({
         name: initialData.name,
         specialty: initialData.specialty,
+        commission: initialData.commission,
         status: initialData.status,
         notes: initialData.notes || "",
       });
@@ -64,6 +67,7 @@ export function BarberForm({ initialData, onSave, onCancel }: BarberFormProps) {
       form.reset({
         name: "",
         specialty: "",
+        commission: 0,
         status: "active",
         notes: "",
       });
@@ -100,6 +104,19 @@ export function BarberForm({ initialData, onSave, onCancel }: BarberFormProps) {
               <FormLabel>Especialidade</FormLabel>
               <FormControl>
                 <Input placeholder="Ex: Corte Clássico" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="commission"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Comissão (%)</FormLabel>
+              <FormControl>
+                <Input type="number" placeholder="Ex: 50" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>

@@ -51,6 +51,7 @@ export async function getBarbers(): Promise<Barber[]> {
             specialty: item.Especialidade,
             status: item.Status === 'Ativo' ? 'active' : 'inactive',
             notes: item.Observacoes,
+            commission: item.Comissao || 0,
         }));
     } catch (error) {
         console.error("Error fetching barbers:", error);

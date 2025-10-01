@@ -20,6 +20,7 @@ export type Barber = {
   specialty: string;
   status: "active" | "inactive";
   notes: string;
+  commission: number;
 };
 
 export type ApiBarber = {
@@ -28,6 +29,7 @@ export type ApiBarber = {
   Especialidade: string;
   Status: 'Ativo' | 'Inativo';
   Observacoes: string;
+  Comissao: number;
 };
 
 export type Appointment = {

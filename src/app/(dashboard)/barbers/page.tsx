@@ -107,6 +107,7 @@ export default function BarbersPage() {
         ...(isEditing ? { ID: Number(editingBarber.id) }:{ ID: Number(barbers.length > 0 ? Math.max(...barbers.map(b => parseInt(b.id))) + 1 : 1) }),
         Nome: values.name,
         Especialidade: values.specialty,
+        Comissao: values.commission,
         Status: values.status === 'active' ? 'Ativo' : 'Inativo',
         Observacoes: values.notes,
       };
@@ -139,6 +140,7 @@ export default function BarbersPage() {
         ID: Number(deactivatingBarber.id),
         Nome: deactivatingBarber.name,
         Especialidade: deactivatingBarber.specialty,
+        Comissao: deactivatingBarber.commission,
         Status: 'Inativo',
         Observacoes: deactivatingBarber.notes,
       });
@@ -222,6 +224,16 @@ export default function BarbersPage() {
               <TableHead>
                 <Button
                   variant="ghost"
+                  onClick={() => requestSort("commission")}
+                  className="px-0"
+                >
+                  Comissão (%)
+                  <ArrowUpDown className="ml-2 h-4 w-4" />
+                </Button>
+              </TableHead>
+              <TableHead>
+                <Button
+                  variant="ghost"
                   onClick={() => requestSort("status")}
                   className="px-0"
                 >
@@ -238,7 +250,7 @@ export default function BarbersPage() {
           <TableBody>
             {isLoading ? (
                 <TableRow>
-                    <TableCell colSpan={5} className="h-24 text-center">
+                    <TableCell colSpan={6} className="h-24 text-center">
                         Carregando...
                     </TableCell>
                 </TableRow>
@@ -247,6 +259,7 @@ export default function BarbersPage() {
                   <TableRow key={barber.id}>
                     <TableCell className="font-medium">{barber.name}</TableCell>
                     <TableCell>{barber.specialty}</TableCell>
+                    <TableCell>{barber.commission}%</TableCell>
                     <TableCell>
                       <Badge variant={barber.status === "active" ? "default" : "secondary"} className={barber.status === "active" ? "bg-green-500/20 text-green-700 hover:bg-green-500/30" : "bg-gray-500/20 text-gray-700 hover:bg-gray-500/30"}>
                         {barber.status === "active" ? "Ativo" : "Inativo"}
@@ -283,7 +296,7 @@ export default function BarbersPage() {
                 ))
             ) : (
                 <TableRow>
-                    <TableCell colSpan={5} className="h-24 text-center">
+                    <TableCell colSpan={6} className="h-24 text-center">
                         Nenhum barbeiro encontrado.
                     </TableCell>
                 </TableRow>
