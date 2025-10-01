@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { format } from "date-fns";
-import { useEffect, useState } from "react";
+import { useEffect, useState, forwardRef } from "react";
 import { Loader2 } from "lucide-react";
 import InputMask from "react-input-mask";
 
@@ -51,6 +51,12 @@ type AppointmentFormProps = {
   onCancel: () => void;
   isSubmitting: boolean;
 };
+
+const MaskedInput = forwardRef<HTMLInputElement, any>((props, ref) => {
+    return <InputMask {...props} mask="(99) 99999-9999"><input ref={ref} {...props} /></InputMask>
+});
+MaskedInput.displayName = 'MaskedInput';
+
 
 export function AppointmentForm({ initialData, onSave, onCancel, isSubmitting }: AppointmentFormProps) {
   const [services, setServices] = useState<Pick<Service, 'id' | 'name' | 'status'>[]>([]);
@@ -138,14 +144,12 @@ export function AppointmentForm({ initialData, onSave, onCancel, isSubmitting }:
             <FormItem>
               <FormLabel>Telefone do Cliente</FormLabel>
               <FormControl>
-                 <InputMask
-                  mask="(99) 99999-9999"
-                  value={field.value}
-                  onChange={field.onChange}
-                  className={cn(
-                    "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-base ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
-                  )}
-                  placeholder="(99) 99999-9999"
+                <MaskedInput
+                    {...field}
+                    className={cn(
+                        "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-base ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
+                    )}
+                    placeholder="(99) 99999-9999"
                 />
               </FormControl>
               <FormMessage />
