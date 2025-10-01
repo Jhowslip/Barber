@@ -24,6 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { DialogFooter } from "./ui/dialog";
+import { Service } from "@/lib/types";
 
 const formSchema = z.object({
   name: z.string().min(1, "Nome do serviço é obrigatório."),
@@ -33,7 +34,7 @@ const formSchema = z.object({
 });
 
 type ServiceFormProps = {
-  initialData?: z.infer<typeof formSchema> | null;
+  initialData?: Service | null;
   onSave: (values: z.infer<typeof formSchema>) => Promise<void>;
   onCancel: () => void;
 };
@@ -42,7 +43,7 @@ export function ServiceForm({ initialData, onSave, onCancel }: ServiceFormProps)
   const [isLoading, setIsLoading] = useState(false);
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
-    defaultValues: initialData || {
+    defaultValues: {
       name: "",
       price: 0,
       duration: 30,

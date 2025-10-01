@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { DialogFooter } from "./ui/dialog";
+import { Barber } from "@/lib/types";
 
 const formSchema = z.object({
   name: z.string().min(1, "Nome do barbeiro é obrigatório."),
@@ -34,7 +35,7 @@ const formSchema = z.object({
 });
 
 type BarberFormProps = {
-  initialData?: z.infer<typeof formSchema> | null;
+  initialData?: Barber | null;
   onSave: (values: z.infer<typeof formSchema>) => Promise<void>;
   onCancel: () => void;
 };
@@ -43,7 +44,7 @@ export function BarberForm({ initialData, onSave, onCancel }: BarberFormProps) {
   const [isLoading, setIsLoading] = useState(false);
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
-    defaultValues: initialData || {
+    defaultValues: {
       name: "",
       specialty: "",
       status: "active",
@@ -53,7 +54,12 @@ export function BarberForm({ initialData, onSave, onCancel }: BarberFormProps) {
 
   useEffect(() => {
     if (initialData) {
-      form.reset(initialData);
+      form.reset({
+        name: initialData.name,
+        specialty: initialData.specialty,
+        status: initialData.status,
+        notes: initialData.notes || "",
+      });
     } else {
       form.reset({
         name: "",
@@ -106,7 +112,7 @@ export function BarberForm({ initialData, onSave, onCancel }: BarberFormProps) {
             <FormItem>
               <FormLabel>Observações</FormLabel>
               <FormControl>
-                <Textarea placeholder="Alguma observação sobre o barbeiro?" {...field} />
+                <Textarea placeholder="Alguma observação sobre o barbeiro?" {...field} value={field.value || ''} />
               </FormControl>
               <FormMessage />
             </FormItem>

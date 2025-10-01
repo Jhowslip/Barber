@@ -104,7 +104,7 @@ export default function BarbersPage() {
       const isEditing = !!editingBarber;
       
       const body = {
-        ...(isEditing ? { ID: Number(editingBarber.id) }:{ ID: Number(barbers.length + 1) }),
+        ...(isEditing ? { ID: Number(editingBarber.id) }:{ ID: Number(barbers.length > 0 ? Math.max(...barbers.map(b => parseInt(b.id))) + 1 : 1) }),
         Nome: values.name,
         Especialidade: values.specialty,
         Status: values.status === 'active' ? 'Ativo' : 'Inativo',
@@ -320,5 +320,3 @@ export default function BarbersPage() {
     </div>
   );
 }
-
-    

@@ -110,7 +110,7 @@ export default function ServicesPage() {
       const isEditing = !!editingService;
       
       const body = {
-        ...(isEditing ? { ID: Number(editingService.id) }:{ ID: Number(services.length + 1) }),
+        ...(isEditing ? { ID: Number(editingService.id) }:{ ID: Number(services.length > 0 ? Math.max(...services.map(s => parseInt(s.id))) + 1 : 1) }),
         Nome: values.name,
         Preço: values.price,
         "Duração (min)": values.duration,
