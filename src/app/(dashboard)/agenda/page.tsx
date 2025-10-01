@@ -29,6 +29,7 @@ export default function AgendaPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const [newAppointmentSlot, setNewAppointmentSlot] = useState<Date | null>(null);
   const [appointmentToCancel, setAppointmentToCancel] = useState<Appointment | null>(null);
@@ -75,12 +76,14 @@ export default function AgendaPage() {
     slotDateTime.setHours(time.getHours(), time.getMinutes(), 0, 0);
     setNewAppointmentSlot(slotDateTime);
     setSelectedAppointment(null);
+    setIsEditing(false);
     setIsModalOpen(true);
   };
 
   const handleAppointmentClick = (appointment: Appointment) => {
     setSelectedAppointment(appointment);
     setNewAppointmentSlot(null);
+    setIsEditing(false);
     setIsModalOpen(true);
   };
   
@@ -93,9 +96,8 @@ export default function AgendaPage() {
         const newAppointmentStart = values.startTime;
         const newAppointmentEnd = addMinutes(newAppointmentStart, service.duration);
 
-        // Check for overlapping appointments
         const isOverlapping = appointments
-            .filter(app => app.barberId === values.barberId && app.id !== selectedAppointment?.id) // Exclude the current appointment if editing
+            .filter(app => app.barberId === values.barberId && app.id !== (selectedAppointment?.id ?? -1))
             .some(existingApp => 
                 areIntervalsOverlapping(
                     { start: newAppointmentStart, end: newAppointmentEnd },
@@ -135,7 +137,6 @@ export default function AgendaPage() {
         });
 
         setIsModalOpen(false);
-        setSelectedAppointment(null);
         await loadAgendaData();
 
     } catch (error) {
@@ -236,6 +237,29 @@ export default function AgendaPage() {
     );
   }
 
+  const handleModalOpenChange = (open: boolean) => {
+    if (!open) {
+        setSelectedAppointment(null);
+        setIsEditing(false);
+    }
+    setIsModalOpen(open);
+  }
+
+  const handleCancelForm = () => {
+    if (selectedAppointment) {
+        setIsEditing(false);
+    } else {
+        setIsModalOpen(false);
+    }
+  }
+  
+  const getModalTitle = () => {
+    if (selectedAppointment) {
+      return isEditing ? "Editar Agendamento" : "Detalhes do Agendamento";
+    }
+    return "Novo Agendamento";
+  }
+
   return (
     <div className="flex flex-1 flex-col p-4 md:p-8 pt-6 space-y-4">
       <div className="flex items-center justify-between space-y-2">
@@ -324,19 +348,13 @@ export default function AgendaPage() {
         </div>
       </div>
 
-      <Dialog open={isModalOpen} onOpenChange={(open) => {
-          if (!open) {
-              setSelectedAppointment(null);
-          }
-          setIsModalOpen(open);
-      }}>
+      <Dialog open={isModalOpen} onOpenChange={handleModalOpenChange}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>
-              {selectedAppointment ? "Detalhes do Agendamento" : "Novo Agendamento"}
-            </DialogTitle>
+            <DialogTitle>{getModalTitle()}</DialogTitle>
           </DialogHeader>
-          {selectedAppointment ? (
+          
+          {selectedAppointment && !isEditing ? (
              <div className="space-y-4 py-4">
                 <div className="flex items-center gap-4">
                     <User className="h-5 w-5 text-muted-foreground"/>
@@ -371,10 +389,7 @@ export default function AgendaPage() {
                          {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                         Cancelar
                     </Button>
-                    <Button onClick={() => {
-                        setNewAppointmentSlot(null);
-                        // The form will be opened with the selected appointment data
-                    }} >Editar</Button>
+                    <Button onClick={() => setIsEditing(true)}>Editar</Button>
                     {selectedAppointment.status === 'pending' && (
                         <Button onClick={() => handleStatusChange(selectedAppointment, "Confirmado")} disabled={isSubmitting}>
                            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -385,7 +400,7 @@ export default function AgendaPage() {
              </div>
           ) : (
             <AppointmentForm
-                initialData={selectedAppointment ? {
+                initialData={isEditing && selectedAppointment ? {
                     clientName: selectedAppointment.clientName,
                     clientPhone: selectedAppointment.clientPhone,
                     serviceId: selectedAppointment.serviceId,
@@ -394,7 +409,7 @@ export default function AgendaPage() {
                     paymentMethod: selectedAppointment.paymentMethod,
                 } : {startTime: newAppointmentSlot}}
                 onSave={handleSaveAppointment}
-                onCancel={() => {setIsModalOpen(false); setSelectedAppointment(null);}}
+                onCancel={handleCancelForm}
                 isSubmitting={isSubmitting}
             />
           )}
@@ -420,5 +435,3 @@ export default function AgendaPage() {
     </div>
   );
 }
-
-    
