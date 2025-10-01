@@ -83,7 +83,7 @@ export function AppointmentForm({ initialData, onSave, onCancel, isSubmitting }:
                 setPaymentMethods(settingsData.Formas_Pagamento.split(',').map(p => p.trim()));
             }
 
-        } catch (error) => {
+        } catch (error) {
             console.error("Failed to fetch data for form", error);
         } finally {
             setIsLoading(false);
