@@ -26,6 +26,8 @@ import {
 } from "@/components/ui/select";
 import { DialogFooter } from "./ui/dialog";
 import { Skeleton } from "./ui/skeleton";
+import { getServices, getBarbers } from "@/lib/api";
+import { Service, Barber } from "@/lib/types";
 
 const formSchema = z.object({
   clientName: z.string().min(1, "Nome do cliente é obrigatório."),
@@ -37,16 +39,6 @@ const formSchema = z.object({
   barberName: z.string().optional(),
 });
 
-type Service = {
-  id: string;
-  name: string;
-};
-
-type Barber = {
-  id: string;
-  name: string;
-};
-
 
 type AppointmentFormProps = {
   initialData: Partial<z.infer<typeof formSchema>>;
@@ -56,8 +48,8 @@ type AppointmentFormProps = {
 };
 
 export function AppointmentForm({ initialData, onSave, onCancel, isSubmitting }: AppointmentFormProps) {
-  const [services, setServices] = useState<Service[]>([]);
-  const [barbers, setBarbers] = useState<Barber[]>([]);
+  const [services, setServices] = useState<Pick<Service, 'id' | 'name' | 'status'>[]>([]);
+  const [barbers, setBarbers] = useState<Pick<Barber, 'id' | 'name' | 'status'>[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -73,15 +65,13 @@ export function AppointmentForm({ initialData, onSave, onCancel, isSubmitting }:
     async function fetchData() {
         setIsLoading(true);
         try {
-            const [servicesRes, barbersRes] = await Promise.all([
-                fetch('https://n8n.mailizjoias.com.br/webhook/servicos'),
-                fetch('https://n8n.mailizjoias.com.br/webhook/barbers')
+            const [servicesData, barbersData] = await Promise.all([
+                getServices(),
+                getBarbers()
             ]);
-            const servicesData = await servicesRes.json();
-            const barbersData = await barbersRes.json();
 
-            setServices(servicesData.map((s: any) => ({ id: String(s.ID), name: s.Nome })).filter((s:any) => s.Status !== 'Desativado'));
-            setBarbers(barbersData.map((b: any) => ({ id: String(b.ID), name: b.Nome })).filter((b:any) => b.Status !== 'Inativo'));
+            setServices(servicesData.filter((s) => s.status === 'active'));
+            setBarbers(barbersData.filter((b) => b.status === 'active'));
 
         } catch (error) {
             console.error("Failed to fetch data for form", error);

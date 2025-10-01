@@ -43,46 +43,11 @@ import {
 } from "@/components/ui/alert-dialog";
 import { ServiceForm } from "@/components/service-form";
 import { useToast } from "@/hooks/use-toast";
+import { getServices, saveService } from "@/lib/api";
+import { Service } from "@/lib/types";
 
-
-type Service = {
-  id: string;
-  name: string;
-  price: number;
-  duration: number;
-  status: "active" | "inactive";
-};
-
-type ApiService = {
-  ID: number;
-  Nome: string;
-  Preço: number;
-  "Duração (min)": number;
-  Status: "Ativo" | "Desativado";
-};
 
 type SortKey = keyof Service;
-
-async function getServices(): Promise<Service[]> {
-    try {
-        const response = await fetch('https://n8n.mailizjoias.com.br/webhook/servicos');
-        if (!response.ok) {
-            console.error("Failed to fetch services", response.statusText);
-            return [];
-        }
-        const data: ApiService[] = await response.json();
-        return data.map(item => ({
-            id: String(item.ID),
-            name: item.Nome,
-            price: item.Preço,
-            duration: item["Duração (min)"],
-            status: item.Status === 'Ativo' ? 'active' : 'inactive'
-        }));
-    } catch (error) {
-        console.error("Error fetching services:", error);
-        return [];
-    }
-}
 
 
 export default function ServicesPage() {
@@ -143,8 +108,6 @@ export default function ServicesPage() {
   const handleSaveService = async (values: any) => {
     try {
       const isEditing = !!editingService;
-      const url = 'https://n8n.mailizjoias.com.br/webhook/servicos';
-      const method = 'POST';
       
       const body = {
         ...(isEditing ? { ID: Number(editingService.id) }:{ ID: Number(services.length + 1) }),
@@ -154,17 +117,7 @@ export default function ServicesPage() {
         Status: values.status === 'active' ? 'Ativo' : 'Desativado',
       };
 
-      const response = await fetch(url, {
-        method: method,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(body),
-      });
-
-      if (!response.ok) {
-        throw new Error('Falha ao salvar o serviço');
-      }
+      await saveService(body);
       
       toast({
         title: "Sucesso!",
@@ -188,23 +141,13 @@ export default function ServicesPage() {
     if (!deactivatingService) return;
 
     try {
-      const response = await fetch('https://n8n.mailizjoias.com.br/webhook/servicos', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+      await saveService({
           ID: Number(deactivatingService.id),
           Nome: deactivatingService.name,
           Preço: deactivatingService.price,
           "Duração (min)": deactivatingService.duration,
           Status: 'Desativado',
-        }),
       });
-
-      if (!response.ok) {
-        throw new Error('Falha ao desativar o serviço');
-      }
 
       toast({
         title: "Sucesso!",

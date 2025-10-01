@@ -29,6 +29,8 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ApiConfig } from "@/lib/types";
+import { getSettings, saveSettings } from "@/lib/api";
 
 const formSchema = z.object({
   barbershopName: z.string().min(1, { message: "Nome da barbearia é obrigatório." }),
@@ -41,16 +43,6 @@ const formSchema = z.object({
   audioResponse: z.boolean().default(false),
   sendReactions: z.boolean().default(false),
 });
-
-type ApiConfig = {
-  Nome_Barbearia: string;
-  Telefone_Principal: string;
-  Endereco: string;
-  Horario_Funcionamento: string;
-  Formas_Pagamento: string;
-  Responder_Audio: string;
-  Enviar_Reacoes: string;
-};
 
 const paymentMethods = [
   { id: "pix", label: "Pix" },
@@ -120,13 +112,9 @@ export default function SettingsPage() {
     async function fetchConfig() {
       try {
         setIsFetching(true);
-        const response = await fetch('https://n8n.mailizjoias.com.br/webhook/config');
-        if (!response.ok) {
-          throw new Error('Falha ao buscar as configurações.');
-        }
-        const data: ApiConfig[] = await response.json();
-        if (data.length > 0) {
-            const formattedData = mapApiToForm(data[0]);
+        const data = await getSettings();
+        if (data) {
+            const formattedData = mapApiToForm(data);
             form.reset(formattedData);
         }
       } catch (error) {
@@ -148,17 +136,7 @@ export default function SettingsPage() {
     setIsLoading(true);
     try {
         const apiBody = mapFormToApi(values);
-        const response = await fetch('https://n8n.mailizjoias.com.br/webhook/config', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(apiBody),
-        });
-
-        if (!response.ok) {
-            throw new Error('Falha ao salvar as configurações.');
-        }
+        await saveSettings(apiBody);
 
         toast({
             title: "Configurações Salvas",

@@ -18,106 +18,8 @@ import { AppointmentForm } from "@/components/appointment-form";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-
-type Appointment = {
-  id: string;
-  clientName: string;
-  clientPhone: string;
-  serviceId: string;
-  service: string;
-  barberId: string;
-  barber: string;
-  start: Date;
-  end: Date;
-  status: "confirmed" | "pending" | "canceled";
-};
-
-type ApiAppointment = {
-  ID: number;
-  Data: string;
-  Hora: string;
-  Cliente: string;
-  Telefone_Cliente: string;
-  ID_Servico: number;
-  Servico: string;
-  ID_Barbeiro: number;
-  Barbeiro: string;
-  Status: "Confirmado" | "Pendente" | "Cancelado";
-};
-
-type Service = {
-  id: string;
-  name: string;
-  duration: number;
-};
-
-async function getServices(): Promise<Service[]> {
-    try {
-        const response = await fetch('https://n8n.mailizjoias.com.br/webhook/servicos');
-        if (!response.ok) {
-            console.error("Failed to fetch services", response.statusText);
-            return [];
-        }
-        const data = await response.json();
-        return data.map((item: any) => ({
-            id: String(item.ID),
-            name: item.Nome,
-            duration: item["Duração (min)"],
-        }));
-    } catch (error) {
-        console.error("Error fetching services:", error);
-        return [];
-    }
-}
-
-async function getAppointments(services: Service[]): Promise<Appointment[]> {
-    try {
-        const response = await fetch('https://n8n.mailizjoias.com.br/webhook/agenda');
-        if (!response.ok) {
-            console.error("Failed to fetch appointments", response.statusText);
-            return [];
-        }
-        const data: ApiAppointment[] = await response.json();
-
-        return data.map(item => {
-            const startDate = parse(`${item.Data} ${item.Hora}`, 'yyyy-MM-dd HH:mm', new Date());
-            const service = services.find(s => s.id === String(item.ID_Servico));
-            const duration = service ? service.duration : 30; // Default to 30 mins if service not found
-            const endDate = addMinutes(startDate, duration);
-            
-            let status: "confirmed" | "pending" | "canceled";
-            switch (item.Status) {
-                case "Confirmado":
-                    status = "confirmed";
-                    break;
-                case "Pendente":
-                    status = "pending";
-                    break;
-                case "Cancelado":
-                    status = "canceled";
-                    break;
-                default:
-                    status = "pending";
-            }
-
-            return {
-                id: String(item.ID),
-                clientName: item.Cliente,
-                clientPhone: item.Telefone_Cliente,
-                serviceId: String(item.ID_Servico),
-                service: item.Servico,
-                barberId: String(item.ID_Barbeiro),
-                barber: item.Barbeiro,
-                start: startDate,
-                end: endDate,
-                status: status,
-            };
-        }).filter(app => app.status !== 'canceled'); // Filter out canceled appointments from display
-    } catch (error) {
-        console.error("Error fetching appointments:", error);
-        return [];
-    }
-}
+import { Appointment, Service } from "@/lib/types";
+import { getAppointments, getServices, saveAppointment } from "@/lib/api";
 
 
 export default function AgendaPage() {
@@ -134,10 +36,10 @@ export default function AgendaPage() {
 
   const loadAgendaData = async () => {
     setIsLoading(true);
+    const fetchedAppointments = await getAppointments();
+    setAppointments(fetchedAppointments.filter(app => app.status !== 'canceled'));
     const fetchedServices = await getServices();
     setServices(fetchedServices);
-    const fetchedAppointments = await getAppointments(fetchedServices);
-    setAppointments(fetchedAppointments);
     setIsLoading(false);
   }
 
@@ -200,15 +102,7 @@ export default function AgendaPage() {
             Status: "Pendente"
         };
         
-        const response = await fetch('https://n8n.mailizjoias.com.br/webhook/agenda', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(newAppointment),
-        });
-
-        if (!response.ok) {
-            throw new Error('Falha ao criar o agendamento.');
-        }
+        await saveAppointment(newAppointment);
 
         toast({
             title: "Sucesso!",
@@ -246,15 +140,7 @@ export default function AgendaPage() {
             Status: newStatus,
         };
 
-        const response = await fetch('https://n8n.mailizjoias.com.br/webhook/agenda', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-        });
-
-        if (!response.ok) {
-            throw new Error(`Falha ao ${newStatus === 'Confirmado' ? 'confirmar' : 'cancelar'} o agendamento.`);
-        }
+        await saveAppointment(payload);
         
         toast({
             title: "Sucesso!",

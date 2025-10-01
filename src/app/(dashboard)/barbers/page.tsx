@@ -44,47 +44,11 @@ import {
 } from "@/components/ui/alert-dialog";
 import { BarberForm } from "@/components/barber-form";
 import { useToast } from "@/hooks/use-toast";
-
-
-type Barber = {
-  id: string;
-  name: string;
-  specialty: string;
-  status: "active" | "inactive";
-  notes: string;
-};
-
-type ApiBarber = {
-  ID: number;
-  Nome: string;
-  Especialidade: string;
-  Status: 'Ativo' | 'Inativo';
-  Observacoes: string;
-};
+import { Barber } from "@/lib/types";
+import { getBarbers, saveBarber } from "@/lib/api";
 
 
 type SortKey = keyof Barber;
-
-async function getBarbers(): Promise<Barber[]> {
-    try {
-        const response = await fetch('https://n8n.mailizjoias.com.br/webhook/barbers');
-        if (!response.ok) {
-            console.error("Failed to fetch barbers", response.statusText);
-            return [];
-        }
-        const data: ApiBarber[] = await response.json();
-        return data.map(item => ({
-            id: String(item.ID),
-            name: item.Nome,
-            specialty: item.Especialidade,
-            status: item.Status === 'Ativo' ? 'active' : 'inactive',
-            notes: item.Observacoes,
-        }));
-    } catch (error) {
-        console.error("Error fetching barbers:", error);
-        return [];
-    }
-}
 
 
 export default function BarbersPage() {
@@ -138,8 +102,6 @@ export default function BarbersPage() {
   const handleSaveBarber = async (values: any) => {
     try {
       const isEditing = !!editingBarber;
-      const url = 'https://n8n.mailizjoias.com.br/webhook/barbers';
-      const method = 'POST';
       
       const body = {
         ...(isEditing ? { ID: Number(editingBarber.id) }:{ ID: Number(barbers.length + 1) }),
@@ -149,18 +111,8 @@ export default function BarbersPage() {
         Observacoes: values.notes,
       };
 
-      const response = await fetch(url, {
-        method: method,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(body),
-      });
+      await saveBarber(body);
 
-      if (!response.ok) {
-        throw new Error('Falha ao salvar o barbeiro');
-      }
-      
       toast({
         title: "Sucesso!",
         description: `Barbeiro ${isEditing ? 'atualizado' : 'adicionado'} com sucesso.`,
@@ -183,23 +135,14 @@ export default function BarbersPage() {
     if (!deactivatingBarber) return;
 
     try {
-      const response = await fetch('https://n8n.mailizjoias.com.br/webhook/barbers', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          ID: Number(deactivatingBarber.id),
-          Nome: deactivatingBarber.name,
-          Especialidade: deactivatingBarber.specialty,
-          Status: 'Inativo',
-          Observacoes: deactivatingBarber.notes,
-        }),
+      await saveBarber({
+        ID: Number(deactivatingBarber.id),
+        Nome: deactivatingBarber.name,
+        Especialidade: deactivatingBarber.specialty,
+        Status: 'Inativo',
+        Observacoes: deactivatingBarber.notes,
       });
 
-      if (!response.ok) {
-        throw new Error('Falha ao desativar o barbeiro');
-      }
 
       toast({
         title: "Sucesso!",

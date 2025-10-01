@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, XAxis, YAxis } from "recharts";
-import { format, subMonths, startOfMonth, endOfMonth, differenceInDays } from "date-fns";
+import { format, subMonths, startOfMonth, endOfMonth, differenceInDays, subDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Calendar as CalendarIcon, Loader2 } from "lucide-react";
 import { DateRange } from "react-day-picker";
@@ -29,36 +29,8 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart";
 import { Skeleton } from "@/components/ui/skeleton";
-
-type Appointment = {
-  id: string;
-  start: Date;
-  service: string;
-  barber: string;
-  status: "confirmed" | "pending" | "canceled";
-};
-
-async function getAppointments(): Promise<Appointment[]> {
-    try {
-        const response = await fetch('https://n8n.mailizjoias.com.br/webhook/agenda');
-        if (!response.ok) {
-            console.error("Failed to fetch appointments", response.statusText);
-            return [];
-        }
-        const data: any[] = await response.json();
-
-        return data.map(item => ({
-            id: String(item.ID),
-            start: new Date(`${item.Data}T${item.Hora}:00`),
-            service: item.Servico,
-            barber: item.Barbeiro,
-            status: item.Status === "Confirmado" ? "confirmed" : item.Status === "Pendente" ? "pending" : "canceled",
-        }));
-    } catch (error) {
-        console.error("Error fetching appointments:", error);
-        return [];
-    }
-}
+import { Appointment } from "@/lib/types";
+import { getAppointments } from "@/lib/api";
 
 
 const chartConfig = {
@@ -86,9 +58,7 @@ export default function ReportsPage({
   useEffect(() => {
     async function loadData() {
         setIsLoading(true);
-        const [appointmentsData] = await Promise.all([
-            getAppointments(),
-        ]);
+        const appointmentsData = await getAppointments();
         setAppointments(appointmentsData);
         setIsLoading(false);
     }
@@ -111,10 +81,10 @@ export default function ReportsPage({
     if (!date?.from) return [];
     
     const to = date.to || date.from;
-    const diffInDays = differenceInDays(to, date.from);
+    const diff = differenceInDays(to, date.from);
 
-    const prevFrom = subMonths(date.from, 1);
-    const prevTo = subMonths(to, 1);
+    const prevFrom = subDays(date.from, diff + 1);
+    const prevTo = subDays(to, diff + 1);
     
     return appointments.filter(app => {
         const appDate = app.start;
