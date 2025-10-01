@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, XAxis, YAxis } from "recharts";
 import { format, subMonths, startOfMonth, endOfMonth, differenceInDays, subDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Calendar as CalendarIcon, Loader2, Banknote } from "lucide-react";
+import { Calendar as CalendarIcon, Loader2, Banknote, Percent, Users } from "lucide-react";
 import { DateRange } from "react-day-picker";
 import { countBy, orderBy } from "lodash";
 
@@ -29,8 +29,9 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Appointment } from "@/lib/types";
-import { getAppointments } from "@/lib/api";
+import { Appointment, Barber } from "@/lib/types";
+import { getAppointments, getBarbers } from "@/lib/api";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 
 const chartConfig = {
@@ -55,6 +56,7 @@ export default function ReportsPage({
   className,
 }: React.HTMLAttributes<HTMLDivElement>) {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [barbers, setBarbers] = useState<Barber[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   
   const [date, setDate] = useState<DateRange | undefined>({
@@ -65,8 +67,12 @@ export default function ReportsPage({
   useEffect(() => {
     async function loadData() {
         setIsLoading(true);
-        const appointmentsData = await getAppointments();
+        const [appointmentsData, barbersData] = await Promise.all([
+          getAppointments(),
+          getBarbers()
+        ]);
         setAppointments(appointmentsData);
+        setBarbers(barbersData);
         setIsLoading(false);
     }
     loadData();
@@ -148,6 +154,24 @@ export default function ReportsPage({
     return data;
   }, [filteredAppointments]);
 
+  const barberCommissionsData = useMemo(() => {
+      const commissions: { [key: string]: { name: string; totalCommission: number } } = {};
+
+      filteredAppointments.forEach(app => {
+          const barber = barbers.find(b => b.id === app.barberId);
+          if (barber && barber.commission > 0) {
+              if (!commissions[barber.id]) {
+                  commissions[barber.id] = { name: barber.name, totalCommission: 0 };
+              }
+              const commissionValue = app.price * (barber.commission / 100);
+              commissions[barber.id].totalCommission += commissionValue;
+          }
+      });
+
+      return orderBy(Object.values(commissions), 'totalCommission', 'desc');
+  }, [filteredAppointments, barbers]);
+
+
   if (isLoading) {
     return (
         <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
@@ -182,8 +206,8 @@ export default function ReportsPage({
                     </CardContent>
                 </Card>
              </div>
-             <div className="grid gap-4 md:grid-cols-1 lg:grid-cols-2">
-                <Card>
+             <div className="grid gap-4 md:grid-cols-1 lg:grid-cols-7">
+                <Card className="lg:col-span-2">
                     <CardHeader>
                         <CardTitle>Serviços mais vendidos</CardTitle>
                     </CardHeader>
@@ -191,12 +215,20 @@ export default function ReportsPage({
                         <Skeleton className="h-[300px] w-full" />
                     </CardContent>
                 </Card>
-                 <Card>
+                 <Card className="lg:col-span-3">
                     <CardHeader>
                         <CardTitle>Barbeiros com mais clientes</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <Skeleton className="h-[300px] w-full" />
+                    </CardContent>
+                </Card>
+                <Card className="lg:col-span-2">
+                    <CardHeader>
+                      <CardTitle>Comissões por Barbeiro</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                       <Skeleton className="h-[300px] w-full" />
                     </CardContent>
                 </Card>
              </div>
@@ -294,8 +326,8 @@ export default function ReportsPage({
         </Card>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-1 lg:grid-cols-2">
-        <Card>
+      <div className="grid gap-4 md:grid-cols-1 lg:grid-cols-7">
+        <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle>Serviços mais vendidos</CardTitle>
             <CardDescription>Top 5 serviços por volume no período.</CardDescription>
@@ -331,7 +363,7 @@ export default function ReportsPage({
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="lg:col-span-3">
           <CardHeader>
             <CardTitle>Barbeiros com mais clientes</CardTitle>
             <CardDescription>Ranking de barbeiros por atendimentos no período.</CardDescription>
@@ -363,6 +395,32 @@ export default function ReportsPage({
               </BarChart>
             </ChartContainer>
           </CardContent>
+        </Card>
+
+        <Card className="lg:col-span-2">
+            <CardHeader>
+                <CardTitle>Comissões por Barbeiro</CardTitle>
+                <CardDescription>Total de comissão a pagar no período.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                {barberCommissionsData.length > 0 ? barberCommissionsData.map((barber, index) => (
+                    <div key={index} className="flex items-center">
+                        <Avatar className="h-9 w-9">
+                            <AvatarFallback>{barber.name.charAt(0)}</AvatarFallback>
+                        </Avatar>
+                        <div className="ml-4 space-y-1">
+                            <p className="text-sm font-medium leading-none">{barber.name}</p>
+                            <p className="text-sm text-muted-foreground">Comissão Total</p>
+                        </div>
+                        <div className="ml-auto font-medium">{formatCurrency(barber.totalCommission)}</div>
+                    </div>
+                )) : (
+                    <div className="flex flex-col items-center justify-center h-[250px] text-center">
+                        <Users className="h-10 w-10 text-muted-foreground mb-4"/>
+                        <p className="text-sm text-muted-foreground">Nenhuma comissão registrada no período.</p>
+                    </div>
+                )}
+            </CardContent>
         </Card>
       </div>
 
