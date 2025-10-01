@@ -31,7 +31,7 @@ import { DateRange } from "react-day-picker";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { Calendar } from "@/components/ui/calendar";
-import { ChartContainer, ChartTooltip, ChartTooltipContent, PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "@/components/ui/chart";
+import { ChartContainer, ChartTooltip, ChartTooltipContent, PieChart, Pie, Cell, ChartBarChart, ChartBar, ChartXAxis, ChartYAxis, ChartCartesianGrid } from "@/components/ui/chart";
 
 
 const formatCurrency = (value: number) => {
@@ -338,20 +338,20 @@ export default function FinancialPage() {
                                     <Skeleton className="h-[350px] w-full" />
                                ) : (
                                 <ChartContainer config={chartConfig} className="h-[350px] w-full">
-                                    <BarChart data={revenueVsExpensesData}>
-                                        <CartesianGrid vertical={false} />
-                                        <XAxis
+                                    <ChartBarChart data={revenueVsExpensesData}>
+                                        <ChartCartesianGrid vertical={false} />
+                                        <ChartXAxis
                                             dataKey="date"
                                             tickLine={false}
                                             tickMargin={10}
                                             axisLine={false}
                                             tickFormatter={(value) => value.substring(0, 5)}
                                         />
-                                        <YAxis />
+                                        <ChartYAxis />
                                         <ChartTooltip content={<ChartTooltipContent />} />
-                                        <Bar dataKey="receita" fill="var(--color-receita)" radius={4} />
-                                        <Bar dataKey="despesas" fill="var(--color-despesas)" radius={4} />
-                                    </BarChart>
+                                        <ChartBar dataKey="receita" fill="var(--color-receita)" radius={4} />
+                                        <ChartBar dataKey="despesas" fill="var(--color-despesas)" radius={4} />
+                                    </ChartBarChart>
                                 </ChartContainer>
                                )}
                             </CardContent>
@@ -475,5 +475,7 @@ export default function FinancialPage() {
             </Dialog>
         </div>
     );
+
+    
 
     
