@@ -90,8 +90,31 @@ export default function AgendaPage() {
         const service = services.find(s => s.id === values.serviceId);
         if (!service) throw new Error("Serviço não encontrado");
 
-        const newAppointment = {
-            ID: appointments.length > 0 ? Math.max(...appointments.map(a => parseInt(a.id))) + 2 : 1,
+        const newAppointmentStart = values.startTime;
+        const newAppointmentEnd = addMinutes(newAppointmentStart, service.duration);
+
+        // Check for overlapping appointments
+        const isOverlapping = appointments
+            .filter(app => app.barberId === values.barberId && app.id !== selectedAppointment?.id) // Exclude the current appointment if editing
+            .some(existingApp => 
+                areIntervalsOverlapping(
+                    { start: newAppointmentStart, end: newAppointmentEnd },
+                    { start: existingApp.start, end: existingApp.end }
+                )
+            );
+
+        if (isOverlapping) {
+            toast({
+                title: "Horário Indisponível",
+                description: "O barbeiro selecionado já possui um agendamento neste horário. Por favor, escolha outro horário ou barbeiro.",
+                variant: "destructive",
+            });
+            setIsSubmitting(false);
+            return;
+        }
+
+        const newAppointmentPayload = {
+            ID: selectedAppointment ? parseInt(selectedAppointment.id) : (appointments.length > 0 ? Math.max(...appointments.map(a => parseInt(a.id))) + 1 : 1),
             Data: format(values.startTime, 'yyyy-MM-dd'),
             Hora: format(values.startTime, 'HH:mm'),
             Cliente: values.clientName,
@@ -100,24 +123,25 @@ export default function AgendaPage() {
             Servico: service.name,
             ID_Barbeiro: parseInt(values.barberId),
             Barbeiro: values.barberName,
-            Status: "Pendente"
+            Status: selectedAppointment ? (selectedAppointment.status === 'confirmed' ? 'Confirmado' : 'Pendente') : "Pendente"
         };
         
-        await saveAppointment(newAppointment);
+        await saveAppointment(newAppointmentPayload);
 
         toast({
             title: "Sucesso!",
-            description: "Agendamento criado com sucesso.",
+            description: `Agendamento ${selectedAppointment ? 'atualizado' : 'criado'} com sucesso.`,
         });
 
         setIsModalOpen(false);
+        setSelectedAppointment(null);
         await loadAgendaData();
 
     } catch (error) {
         console.error("Error saving appointment:", error);
         toast({
             title: "Erro",
-            description: "Não foi possível criar o agendamento.",
+            description: "Não foi possível salvar o agendamento.",
             variant: "destructive",
         });
     } finally {
@@ -175,6 +199,7 @@ export default function AgendaPage() {
                 </div>
                  <div className="flex items-center space-x-2">
                     <Skeleton className="h-10 w-36" />
+                    <Skeleton className="h-10 w-24" />
                     <Skeleton className="h-10 w-36" />
                  </div>
             </div>
@@ -258,7 +283,7 @@ export default function AgendaPage() {
                   {format(day, "dd/MM")}
                 </p>
               </div>
-              <div className="relative flex-1 grid grid-rows-20">
+              <div className="relative flex-1 grid grid-rows-[repeat(20,minmax(0,1fr))]">
                 {timeSlots.map((time) => (
                   <div
                     key={time.toString()}
@@ -297,7 +322,12 @@ export default function AgendaPage() {
         </div>
       </div>
 
-      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+      <Dialog open={isModalOpen} onOpenChange={(open) => {
+          if (!open) {
+              setSelectedAppointment(null);
+          }
+          setIsModalOpen(open);
+      }}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>
@@ -332,7 +362,7 @@ export default function AgendaPage() {
                          {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                         Cancelar
                     </Button>
-                    <Button variant="outline" disabled={true}>Remarcar</Button>
+                    <Button onClick={() => setIsModalOpen(true)} >Editar</Button>
                     {selectedAppointment.status === 'pending' && (
                         <Button onClick={() => handleStatusChange(selectedAppointment, "Confirmado")} disabled={isSubmitting}>
                            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -343,9 +373,15 @@ export default function AgendaPage() {
              </div>
           ) : (
             <AppointmentForm
-                initialData={{startTime: newAppointmentSlot}}
+                initialData={selectedAppointment ? {
+                    clientName: selectedAppointment.clientName,
+                    clientPhone: selectedAppointment.clientPhone,
+                    serviceId: selectedAppointment.serviceId,
+                    barberId: selectedAppointment.barberId,
+                    startTime: selectedAppointment.start,
+                } : {startTime: newAppointmentSlot}}
                 onSave={handleSaveAppointment}
-                onCancel={() => setIsModalOpen(false)}
+                onCancel={() => {setIsModalOpen(false); setSelectedAppointment(null);}}
                 isSubmitting={isSubmitting}
             />
           )}
