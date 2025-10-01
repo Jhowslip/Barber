@@ -26,14 +26,15 @@ import {
 } from "@/components/ui/select";
 import { DialogFooter } from "./ui/dialog";
 import { Skeleton } from "./ui/skeleton";
-import { getServices, getBarbers } from "@/lib/api";
-import { Service, Barber } from "@/lib/types";
+import { getServices, getBarbers, getSettings } from "@/lib/api";
+import { Service, Barber, ApiConfig } from "@/lib/types";
 
 const formSchema = z.object({
   clientName: z.string().min(1, "Nome do cliente é obrigatório."),
   clientPhone: z.string().min(1, "Telefone do cliente é obrigatório."),
   serviceId: z.string().min(1, "Selecione um serviço."),
   barberId: z.string().min(1, "Selecione um barbeiro."),
+  paymentMethod: z.string().optional(),
   startTime: z.date(),
   // For passing to the parent handler
   barberName: z.string().optional(),
@@ -50,6 +51,7 @@ type AppointmentFormProps = {
 export function AppointmentForm({ initialData, onSave, onCancel, isSubmitting }: AppointmentFormProps) {
   const [services, setServices] = useState<Pick<Service, 'id' | 'name' | 'status'>[]>([]);
   const [barbers, setBarbers] = useState<Pick<Barber, 'id' | 'name' | 'status'>[]>([]);
+  const [paymentMethods, setPaymentMethods] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -65,13 +67,18 @@ export function AppointmentForm({ initialData, onSave, onCancel, isSubmitting }:
     async function fetchData() {
         setIsLoading(true);
         try {
-            const [servicesData, barbersData] = await Promise.all([
+            const [servicesData, barbersData, settingsData] = await Promise.all([
                 getServices(),
-                getBarbers()
+                getBarbers(),
+                getSettings()
             ]);
 
             setServices(servicesData.filter((s) => s.status === 'active'));
             setBarbers(barbersData.filter((b) => b.status === 'active'));
+            
+            if(settingsData && settingsData.Formas_Pagamento) {
+                setPaymentMethods(settingsData.Formas_Pagamento.split(',').map(p => p.trim()));
+            }
 
         } catch (error) {
             console.error("Failed to fetch data for form", error);
@@ -90,6 +97,7 @@ export function AppointmentForm({ initialData, onSave, onCancel, isSubmitting }:
   if (isLoading) {
     return (
         <div className="space-y-4 pt-4">
+            <Skeleton className="h-10 w-full" />
             <Skeleton className="h-10 w-full" />
             <Skeleton className="h-10 w-full" />
             <Skeleton className="h-10 w-full" />
@@ -172,6 +180,30 @@ export function AppointmentForm({ initialData, onSave, onCancel, isSubmitting }:
                   {barbers.map((barber) => (
                     <SelectItem key={barber.id} value={barber.id}>
                       {barber.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="paymentMethod"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Forma de Pagamento</FormLabel>
+              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione a forma de pagamento" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  {paymentMethods.map((method) => (
+                    <SelectItem key={method} value={method}>
+                      {method}
                     </SelectItem>
                   ))}
                 </SelectContent>

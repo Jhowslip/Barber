@@ -44,6 +44,7 @@ export type Appointment = {
   start: Date;
   end: Date;
   status: "confirmed" | "pending" | "canceled";
+  paymentMethod?: string;
 };
 
 export type ApiAppointment = {
@@ -57,6 +58,7 @@ export type ApiAppointment = {
   ID_Barbeiro: number;
   Barbeiro: string;
   Status: "Confirmado" | "Pendente" | "Cancelado";
+  Forma_Pagamento?: string;
 };
 
 

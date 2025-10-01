@@ -125,6 +125,7 @@ export async function getAppointments(): Promise<Appointment[]> {
                 start: startDate,
                 end: endDate,
                 status: status,
+                paymentMethod: item.Forma_Pagamento,
             };
         });
     } catch (error) {

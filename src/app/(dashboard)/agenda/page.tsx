@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { format, addDays, subDays, startOfWeek, endOfWeek, addMinutes, areIntervalsOverlapping, parse } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { ChevronLeft, ChevronRight, X, Clock, User, Scissors, Calendar as CalendarIcon, Loader2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, X, Clock, User, Scissors, Calendar as CalendarIcon, Loader2, Banknote } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -123,7 +123,8 @@ export default function AgendaPage() {
             Servico: service.name,
             ID_Barbeiro: parseInt(values.barberId),
             Barbeiro: values.barberName,
-            Status: selectedAppointment ? (selectedAppointment.status === 'confirmed' ? 'Confirmado' : 'Pendente') : "Pendente"
+            Status: selectedAppointment ? (selectedAppointment.status === 'confirmed' ? 'Confirmado' : 'Pendente') : "Pendente",
+            Forma_Pagamento: values.paymentMethod,
         };
         
         await saveAppointment(newAppointmentPayload);
@@ -163,6 +164,7 @@ export default function AgendaPage() {
             ID_Barbeiro: parseInt(appointment.barberId),
             Barbeiro: appointment.barber,
             Status: newStatus,
+            Forma_Pagamento: appointment.paymentMethod,
         };
 
         await saveAppointment(payload);
@@ -357,12 +359,22 @@ export default function AgendaPage() {
                         <span className="font-semibold">{`${format(selectedAppointment.start, 'dd/MM/yyyy HH:mm')} - ${format(selectedAppointment.end, 'HH:mm')}`}</span>
                     </div>
                 </div>
+                 <div className="flex items-center gap-4">
+                    <Banknote className="h-5 w-5 text-muted-foreground"/>
+                     <div className="flex flex-col">
+                        <span className="text-sm text-muted-foreground">Forma de Pagamento</span>
+                        <span className="font-semibold">{selectedAppointment.paymentMethod || 'Não definido'}</span>
+                    </div>
+                </div>
                 <DialogFooter className="pt-4">
                     <Button variant="destructive" onClick={() => { setAppointmentToCancel(selectedAppointment); setIsModalOpen(false); }} disabled={isSubmitting}>
                          {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                         Cancelar
                     </Button>
-                    <Button onClick={() => setIsModalOpen(true)} >Editar</Button>
+                    <Button onClick={() => {
+                        setNewAppointmentSlot(null);
+                        // The form will be opened with the selected appointment data
+                    }} >Editar</Button>
                     {selectedAppointment.status === 'pending' && (
                         <Button onClick={() => handleStatusChange(selectedAppointment, "Confirmado")} disabled={isSubmitting}>
                            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -379,6 +391,7 @@ export default function AgendaPage() {
                     serviceId: selectedAppointment.serviceId,
                     barberId: selectedAppointment.barberId,
                     startTime: selectedAppointment.start,
+                    paymentMethod: selectedAppointment.paymentMethod,
                 } : {startTime: newAppointmentSlot}}
                 onSave={handleSaveAppointment}
                 onCancel={() => {setIsModalOpen(false); setSelectedAppointment(null);}}
