@@ -363,6 +363,9 @@ const ChartBarChart = RechartsPrimitive.BarChart;
 const ChartLineChart = RechartsPrimitive.LineChart;
 const ChartCartesianGrid = RechartsPrimitive.CartesianGrid;
 const ChartResponsiveContainer = RechartsPrimitive.ResponsiveContainer;
+const PieChart = RechartsPrimitive.PieChart;
+const Pie = RechartsPrimitive.Pie;
+const Cell = RechartsPrimitive.Cell;
 
 
 export {
@@ -379,5 +382,8 @@ export {
   ChartBarChart,
   ChartLineChart,
   ChartCartesianGrid,
-  ChartResponsiveContainer
+  ChartResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell
 }

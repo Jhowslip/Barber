@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { PlusCircle, MoreHorizontal } from "lucide-react";
+import { PlusCircle, MoreHorizontal, Calendar as CalendarIcon } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -24,9 +24,15 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { getExpenses, saveExpense, getAppointments, getBarbers } from "@/lib/api";
 import { Expense, Appointment, Barber } from "@/lib/types";
-import { format } from "date-fns";
+import { format, startOfMonth, endOfMonth, isWithinInterval } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ExpenseForm } from "@/components/expense-form";
+import { DateRange } from "react-day-picker";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
+import { Calendar } from "@/components/ui/calendar";
+import { ChartContainer, ChartTooltip, ChartTooltipContent, PieChart, Pie, Cell } from "@/components/ui/chart";
+
 
 const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("pt-BR", {
@@ -34,6 +40,9 @@ const formatCurrency = (value: number) => {
       currency: "BRL",
     }).format(value);
 };
+
+const COLORS = ["hsl(var(--chart-1))", "hsl(var(--chart-2))", "hsl(var(--chart-3))", "hsl(var(--chart-4))", "hsl(var(--chart-5))"];
+
 
 export default function FinancialPage() {
     const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -43,6 +52,11 @@ export default function FinancialPage() {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
     const { toast } = useToast();
+     const [date, setDate] = useState<DateRange | undefined>({
+        from: startOfMonth(new Date()),
+        to: endOfMonth(new Date()),
+    });
+
 
     async function loadFinancialData() {
         setIsLoading(true);
@@ -72,8 +86,23 @@ export default function FinancialPage() {
         loadFinancialData();
     }, []);
 
+    const { filteredAppointments, filteredExpenses } = useMemo(() => {
+        if (!date?.from) {
+            return { filteredAppointments: [], filteredExpenses: [] };
+        }
+        const interval = {
+            start: date.from,
+            end: date.to || date.from,
+        };
+
+        const appointmentsInRange = appointments.filter(a => isWithinInterval(a.start, interval));
+        const expensesInRange = expenses.filter(e => isWithinInterval(e.date, interval));
+
+        return { filteredAppointments: appointmentsInRange, filteredExpenses: expensesInRange };
+    }, [date, appointments, expenses]);
+
     const financialSummary = useMemo(() => {
-        const confirmedAppointments = appointments.filter(a => a.status === 'confirmed');
+        const confirmedAppointments = filteredAppointments.filter(a => a.status === 'confirmed');
 
         const grossRevenue = confirmedAppointments.reduce((acc, app) => acc + app.price, 0);
 
@@ -85,7 +114,7 @@ export default function FinancialPage() {
             return acc;
         }, 0);
         
-        const totalOtherExpenses = expenses.reduce((acc, exp) => acc + exp.amount, 0);
+        const totalOtherExpenses = filteredExpenses.reduce((acc, exp) => acc + exp.amount, 0);
         
         const totalExpenses = totalCommissions + totalOtherExpenses;
         
@@ -97,7 +126,21 @@ export default function FinancialPage() {
             netProfit,
         };
 
-    }, [appointments, barbers, expenses]);
+    }, [filteredAppointments, barbers, filteredExpenses]);
+
+     const paymentMethodData = useMemo(() => {
+        const data = filteredAppointments
+            .filter(a => a.status === 'confirmed' && a.paymentMethod)
+            .reduce((acc, app) => {
+                const method = app.paymentMethod!;
+                acc[method] = (acc[method] || 0) + app.price;
+                return acc;
+            }, {} as { [key: string]: number });
+
+        return Object.entries(data)
+            .map(([name, value]) => ({ name, value, fill: 'var(--color-text)' })) // fill is managed by Cell
+            .sort((a, b) => b.value - a.value);
+    }, [filteredAppointments]);
 
 
     const handleSaveExpense = async (values: any) => {
@@ -152,6 +195,45 @@ export default function FinancialPage() {
                         Acompanhe a saúde financeira da sua barbearia.
                     </p>
                 </div>
+                 <div className={cn("grid gap-2")}>
+                    <Popover>
+                        <PopoverTrigger asChild>
+                        <Button
+                            id="date"
+                            variant={"outline"}
+                            className={cn(
+                            "w-[300px] justify-start text-left font-normal",
+                            !date && "text-muted-foreground"
+                            )}
+                        >
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {date?.from ? (
+                            date.to ? (
+                                <>
+                                {format(date.from, "PPP", { locale: ptBR })} -{" "}
+                                {format(date.to, "PPP", { locale: ptBR })}
+                                </>
+                            ) : (
+                                format(date.from, "PPP", { locale: ptBR })
+                            )
+                            ) : (
+                            <span>Selecione um período</span>
+                            )}
+                        </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="end">
+                        <Calendar
+                            initialFocus
+                            mode="range"
+                            defaultMonth={date?.from}
+                            selected={date}
+                            onSelect={setDate}
+                            numberOfMonths={2}
+                            locale={ptBR}
+                        />
+                        </PopoverContent>
+                    </Popover>
+                </div>
             </div>
 
             <Tabs defaultValue="overview" className="space-y-4">
@@ -169,7 +251,7 @@ export default function FinancialPage() {
                             </CardHeader>
                             <CardContent>
                                {isLoading ? <Skeleton className="h-8 w-32 mb-2" /> : <div className="text-2xl font-bold">{formatCurrency(financialSummary.grossRevenue)}</div>}
-                               <p className="text-xs text-muted-foreground">Receita total de agendamentos confirmados.</p>
+                               <p className="text-xs text-muted-foreground">Receita de agendamentos no período.</p>
                             </CardContent>
                         </Card>
                          <Card>
@@ -179,7 +261,7 @@ export default function FinancialPage() {
                             </CardHeader>
                             <CardContent>
                                {isLoading ? <Skeleton className="h-8 w-28 mb-2" /> : <div className="text-2xl font-bold">{formatCurrency(financialSummary.totalExpenses)}</div>}
-                               <p className="text-xs text-muted-foreground">Comissões + despesas lançadas.</p>
+                               <p className="text-xs text-muted-foreground">Comissões + despesas no período.</p>
                             </CardContent>
                         </Card>
                          <Card>
@@ -189,7 +271,7 @@ export default function FinancialPage() {
                             </CardHeader>
                             <CardContent>
                                {isLoading ? <Skeleton className="h-8 w-24 mb-2" /> : <div className="text-2xl font-bold">{formatCurrency(financialSummary.netProfit)}</div>}
-                               <p className="text-xs text-muted-foreground">Receita Bruta - Despesas Totais.</p>
+                                <p className="text-xs text-muted-foreground">Lucro estimado no período.</p>
                             </CardContent>
                         </Card>
                     </div>
@@ -208,7 +290,47 @@ export default function FinancialPage() {
                                 <CardTitle>Receita por Forma de Pagamento</CardTitle>
                             </CardHeader>
                             <CardContent>
-                               <Skeleton className="h-[350px] w-full" />
+                                {isLoading ? (
+                                    <Skeleton className="h-[350px] w-full" />
+                                ): paymentMethodData.length > 0 ? (
+                                    <ChartContainer config={{}} className="h-[350px] w-full">
+                                        <PieChart>
+                                            <ChartTooltip
+                                                cursor={false}
+                                                content={<ChartTooltipContent formatter={(value, name) => `${name}: ${formatCurrency(value as number)}`} hideLabel />}
+                                            />
+                                            <Pie
+                                                data={paymentMethodData}
+                                                dataKey="value"
+                                                nameKey="name"
+                                                cx="50%"
+                                                cy="50%"
+                                                outerRadius={120}
+                                                labelLine={false}
+                                                label={({ cx, cy, midAngle, innerRadius, outerRadius, percent, index }) => {
+                                                    const RADIAN = Math.PI / 180;
+                                                    const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
+                                                    const x = cx + radius * Math.cos(-midAngle * RADIAN);
+                                                    const y = cy + radius * Math.sin(-midAngle * RADIAN);
+
+                                                    return (
+                                                        <text x={x} y={y} fill="white" textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central">
+                                                            {`${(percent * 100).toFixed(0)}%`}
+                                                        </text>
+                                                    );
+                                                }}
+                                            >
+                                                {paymentMethodData.map((entry, index) => (
+                                                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                                ))}
+                                            </Pie>
+                                        </PieChart>
+                                    </ChartContainer>
+                                ) : (
+                                    <div className="flex h-[350px] w-full flex-col items-center justify-center text-center">
+                                         <p className="text-sm text-muted-foreground">Nenhuma receita registrada no período.</p>
+                                    </div>
+                                )}
                             </CardContent>
                         </Card>
                     </div>
@@ -219,7 +341,7 @@ export default function FinancialPage() {
                          <div>
                             <h3 className="text-2xl font-bold tracking-tight">Histórico de Lançamentos</h3>
                             <p className="text-muted-foreground">
-                                Visualize e gerencie as despesas e receitas.
+                                Visualize e gerencie as despesas.
                             </p>
                         </div>
                         <Button onClick={handleOpenAddModal}>
@@ -245,8 +367,8 @@ export default function FinancialPage() {
                                     Carregando...
                                     </TableCell>
                                 </TableRow>
-                                ) : expenses.length > 0 ? (
-                                expenses.map((expense) => (
+                                ) : filteredExpenses.length > 0 ? (
+                                filteredExpenses.map((expense) => (
                                     <TableRow key={expense.id}>
                                     <TableCell className="font-medium">{expense.description}</TableCell>
                                     <TableCell>{expense.category}</TableCell>
@@ -257,7 +379,7 @@ export default function FinancialPage() {
                                 ) : (
                                 <TableRow>
                                     <TableCell colSpan={4} className="h-24 text-center">
-                                    Nenhum lançamento encontrado.
+                                    Nenhum lançamento encontrado no período.
                                     </TableCell>
                                 </TableRow>
                                 )}
