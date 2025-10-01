@@ -24,14 +24,14 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { getExpenses, saveExpense, getAppointments, getBarbers } from "@/lib/api";
 import { Expense, Appointment, Barber } from "@/lib/types";
-import { format, startOfMonth, endOfMonth, isWithinInterval } from "date-fns";
+import { format, startOfMonth, endOfMonth, isWithinInterval, eachDayOfInterval, startOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ExpenseForm } from "@/components/expense-form";
 import { DateRange } from "react-day-picker";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { Calendar } from "@/components/ui/calendar";
-import { ChartContainer, ChartTooltip, ChartTooltipContent, PieChart, Pie, Cell } from "@/components/ui/chart";
+import { ChartContainer, ChartTooltip, ChartTooltipContent, PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "@/components/ui/chart";
 
 
 const formatCurrency = (value: number) => {
@@ -42,6 +42,18 @@ const formatCurrency = (value: number) => {
 };
 
 const COLORS = ["hsl(var(--chart-1))", "hsl(var(--chart-2))", "hsl(var(--chart-3))", "hsl(var(--chart-4))", "hsl(var(--chart-5))"];
+
+
+const chartConfig = {
+  receita: {
+    label: "Receita",
+    color: "hsl(var(--chart-1))",
+  },
+  despesas: {
+    label: "Despesas",
+    color: "hsl(var(--chart-2))",
+  },
+};
 
 
 export default function FinancialPage() {
@@ -124,6 +136,7 @@ export default function FinancialPage() {
             grossRevenue,
             totalExpenses,
             netProfit,
+            totalCommissions,
         };
 
     }, [filteredAppointments, barbers, filteredExpenses]);
@@ -141,6 +154,44 @@ export default function FinancialPage() {
             .map(([name, value]) => ({ name, value, fill: 'var(--color-text)' })) // fill is managed by Cell
             .sort((a, b) => b.value - a.value);
     }, [filteredAppointments]);
+
+    const revenueVsExpensesData = useMemo(() => {
+        if (!date?.from || !date?.to) return [];
+
+        const intervalDays = eachDayOfInterval({ start: date.from, end: date.to });
+
+        return intervalDays.map(day => {
+            const dayStr = format(day, 'yyyy-MM-dd');
+            
+            // Daily Revenue
+            const dailyRevenue = filteredAppointments
+                .filter(a => a.status === 'confirmed' && format(a.start, 'yyyy-MM-dd') === dayStr)
+                .reduce((acc, a) => acc + a.price, 0);
+            
+            // Daily Commissions
+            const dailyCommissions = filteredAppointments
+                .filter(a => a.status === 'confirmed' && format(a.start, 'yyyy-MM-dd') === dayStr)
+                .reduce((acc, app) => {
+                    const barber = barbers.find(b => b.id === app.barberId);
+                    if (barber && barber.commission > 0) {
+                        return acc + (app.price * (barber.commission / 100));
+                    }
+                    return acc;
+                }, 0);
+                
+            // Daily Other Expenses
+            const dailyOtherExpenses = filteredExpenses
+                .filter(e => format(e.date, 'yyyy-MM-dd') === dayStr)
+                .reduce((acc, e) => acc + e.amount, 0);
+
+            return {
+                date: format(day, 'dd/MM'),
+                receita: dailyRevenue,
+                despesas: dailyCommissions + dailyOtherExpenses
+            };
+        });
+
+    }, [filteredAppointments, filteredExpenses, barbers, date]);
 
 
     const handleSaveExpense = async (values: any) => {
@@ -280,14 +331,35 @@ export default function FinancialPage() {
                         <Card className="col-span-4">
                             <CardHeader>
                                 <CardTitle>Receita vs. Despesas</CardTitle>
+                                <CardDescription>Análise diária no período selecionado.</CardDescription>
                             </CardHeader>
                             <CardContent className="pl-2">
-                                <Skeleton className="h-[350px] w-full" />
+                               {isLoading ? (
+                                    <Skeleton className="h-[350px] w-full" />
+                               ) : (
+                                <ChartContainer config={chartConfig} className="h-[350px] w-full">
+                                    <BarChart data={revenueVsExpensesData}>
+                                        <CartesianGrid vertical={false} />
+                                        <XAxis
+                                            dataKey="date"
+                                            tickLine={false}
+                                            tickMargin={10}
+                                            axisLine={false}
+                                            tickFormatter={(value) => value.substring(0, 5)}
+                                        />
+                                        <YAxis />
+                                        <ChartTooltip content={<ChartTooltipContent />} />
+                                        <Bar dataKey="receita" fill="var(--color-receita)" radius={4} />
+                                        <Bar dataKey="despesas" fill="var(--color-despesas)" radius={4} />
+                                    </BarChart>
+                                </ChartContainer>
+                               )}
                             </CardContent>
                         </Card>
                          <Card className="col-span-3">
                             <CardHeader>
                                 <CardTitle>Receita por Forma de Pagamento</CardTitle>
+                                <CardDescription>Distribuição da receita no período.</CardDescription>
                             </CardHeader>
                             <CardContent>
                                 {isLoading ? (
@@ -403,4 +475,5 @@ export default function FinancialPage() {
             </Dialog>
         </div>
     );
-}
+
+    
