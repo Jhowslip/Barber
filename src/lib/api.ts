@@ -1,3 +1,4 @@
+
 import { addMinutes, parse } from 'date-fns';
 import { ApiService, Service, ApiBarber, Barber, Appointment, ApiAppointment, ApiConfig } from './types';
 
@@ -33,7 +34,7 @@ export async function saveService(service: Omit<ApiService, 'row_number'>) {
     if (!response.ok) {
         throw new Error('Falha ao salvar o serviço');
     }
-    return response.json();
+    // Return void or a success indicator, as the response body is empty.
 }
 
 
@@ -68,7 +69,7 @@ export async function saveBarber(barber: Omit<ApiBarber, 'row_number'>) {
     if (!response.ok) {
         throw new Error('Falha ao salvar o barbeiro');
     }
-    return response.json();
+    // Return void or a success indicator, as the response body is empty.
 }
 
 // Appointments
@@ -142,7 +143,7 @@ export async function saveAppointment(appointment: any) {
     if (!response.ok) {
         throw new Error('Falha ao criar o agendamento.');
     }
-    return response.json();
+    // Return void or a success indicator, as the response body is empty.
 }
 
 
@@ -173,5 +174,5 @@ export async function saveSettings(settings: any) {
     if (!response.ok) {
         throw new Error('Falha ao salvar as configurações.');
     }
-    return response.json();
+    // Return void or a success indicator, as the response body is empty.
 }
