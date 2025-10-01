@@ -29,6 +29,7 @@ import { DialogFooter } from "./ui/dialog";
 import { Skeleton } from "./ui/skeleton";
 import { getServices, getBarbers, getSettings } from "@/lib/api";
 import { Service, Barber } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 const phoneRegex = /^\(\d{2}\) \d{5}-\d{4}$/;
 
@@ -137,14 +138,15 @@ export function AppointmentForm({ initialData, onSave, onCancel, isSubmitting }:
             <FormItem>
               <FormLabel>Telefone do Cliente</FormLabel>
               <FormControl>
-                <InputMask
+                 <InputMask
                   mask="(99) 99999-9999"
                   value={field.value}
                   onChange={field.onChange}
-                >
-                  {/* @ts-ignore */}
-                  {(inputProps) => <Input {...inputProps} placeholder="(99) 99999-9999" />}
-                </InputMask>
+                  className={cn(
+                    "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-base ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
+                  )}
+                  placeholder="(99) 99999-9999"
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
