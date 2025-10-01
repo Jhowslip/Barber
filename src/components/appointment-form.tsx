@@ -4,9 +4,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { format } from "date-fns";
-import { useEffect, useState, forwardRef } from "react";
+import { useEffect, useState, ChangeEvent } from "react";
 import { Loader2 } from "lucide-react";
-import InputMask from "react-input-mask";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -29,7 +28,6 @@ import { DialogFooter } from "./ui/dialog";
 import { Skeleton } from "./ui/skeleton";
 import { getServices, getBarbers, getSettings } from "@/lib/api";
 import { Service, Barber } from "@/lib/types";
-import { cn } from "@/lib/utils";
 
 const phoneRegex = /^\(\d{2}\) \d{5}-\d{4}$/;
 
@@ -51,12 +49,6 @@ type AppointmentFormProps = {
   onCancel: () => void;
   isSubmitting: boolean;
 };
-
-const MaskedInput = forwardRef<HTMLInputElement, any>((props, ref) => {
-    return <InputMask {...props} mask="(99) 99999-9999"><input ref={ref} {...props} /></InputMask>
-});
-MaskedInput.displayName = 'MaskedInput';
-
 
 export function AppointmentForm({ initialData, onSave, onCancel, isSubmitting }: AppointmentFormProps) {
   const [services, setServices] = useState<Pick<Service, 'id' | 'name' | 'status'>[]>([]);
@@ -104,6 +96,23 @@ export function AppointmentForm({ initialData, onSave, onCancel, isSubmitting }:
     onSave({ ...data, barberName: selectedBarber?.name });
   }
 
+   const handlePhoneChange = (e: ChangeEvent<HTMLInputElement>, fieldChange: (value: string) => void) => {
+    const rawValue = e.target.value.replace(/\D/g, '');
+    let formattedValue = '';
+    
+    if (rawValue.length > 0) {
+      formattedValue = '(' + rawValue.substring(0, 2);
+    }
+    if (rawValue.length > 2) {
+      formattedValue += ') ' + rawValue.substring(2, 7);
+    }
+    if (rawValue.length > 7) {
+      formattedValue += '-' + rawValue.substring(7, 11);
+    }
+    
+    fieldChange(formattedValue);
+  };
+
   if (isLoading) {
     return (
         <div className="space-y-4 pt-4">
@@ -144,12 +153,11 @@ export function AppointmentForm({ initialData, onSave, onCancel, isSubmitting }:
             <FormItem>
               <FormLabel>Telefone do Cliente</FormLabel>
               <FormControl>
-                <MaskedInput
-                    {...field}
-                    className={cn(
-                        "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-base ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
-                    )}
-                    placeholder="(99) 99999-9999"
+                <Input
+                  {...field}
+                  placeholder="(99) 99999-9999"
+                  onChange={(e) => handlePhoneChange(e, field.onChange)}
+                  maxLength={15}
                 />
               </FormControl>
               <FormMessage />
